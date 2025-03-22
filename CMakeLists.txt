@@ -9,9 +9,10 @@ find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 
 add_executable(Voxel main.cpp
-    "GL_Abstract/Program.cpp"
+    GL_Abstract/Program.cpp
     GL_Abstract/VertexArray.cpp
     GL_Abstract/VertexBuffer.cpp
-    GL_Abstract/ElementBuffer.cpp)
+    GL_Abstract/ElementBuffer.cpp
+    Rendering/Camera.cpp)
 
 target_link_libraries(Voxel PRIVATE GLEW::GLEW glfw glm OpenGL::GL)
