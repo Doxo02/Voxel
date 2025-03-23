@@ -13,6 +13,7 @@
 #include "Rendering/Camera.h"
 
 #include <fstream>
+#include <iostream>
 
 #define WIDTH 800
 #define HEIGHT 600
@@ -23,21 +24,35 @@ struct Vertex {
 };
 
 std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-    {{0.0f, 0.5f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-    {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}}
+    {{-1, -1, -1}, {1.0f, 0.0f, 0.0f, 1.0f}},      // front bottom-left
+    {{1, -1, -1}, {0.0f, 1.0f, 0.0f, 1.0f}},       // front top-left
+    {{1, 1, -1}, {0.0f, 0.0f, 1.0f, 1.0f}},        // front top-right
+    {{-1, 1, -1}, {1.0f, 1.0f, 0.0f, 1.0f}},       // front bottom-right
+    {{-1, -1, 1}, {1.0f, 0.0f, 1.0f, 1.0f}},       // back bottom-left
+    {{1, -1, 1}, {0.0f, 1.0f, 1.0f, 1.0f}},        // back top-left
+    {{1, 1, 1}, {1.0f, 1.0f, 1.0f, 1.0f}},         // back top-right
+    {{-1, 1, 1}, {1.0f, 0.0f, 0.0f, 1.0f}}         // back bottom-right
 };
 
 std::vector<unsigned int> indices = {
-    0, 1, 2
+    0, 1, 3, 3, 1, 2,
+    1, 5, 2, 2, 5, 6,
+    5, 4, 6, 6, 4, 7,
+    4, 0, 7, 7, 0, 3,
+    3, 2, 7, 7, 2, 6,
+    4, 5, 0, 0, 5, 1
 };
 
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
+glm::mat4 projection;
 
+bool viewportResized = false;
 
 // GLFW window Resize callback
 void onResize(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
+    projection = glm::perspective(glm::radians(camera.zoom), (float) width / (float) height, 0.1f, 100.0f);
+    viewportResized = true;
 }
 
 float deltaTime = 0.0f;
@@ -103,25 +118,21 @@ int main(int, char**){
     gla::VertexArray vao;
     vao.bind();
     gla::VertexBuffer vbo(vertices.data(), vertices.size() * sizeof(Vertex));
-    vbo.bind();
     gla::ElementBuffer ebo(indices.data(), indices.size() * sizeof(unsigned int));
-    ebo.bind();
 
     vao.setAttribute(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
     vao.setAttribute(1, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
 
     std::ifstream vertexFile("./assets/shader/basic.vert");
-    std::string vertexSource((std::istreambuf_iterator<char
-        >(vertexFile)), std::istreambuf_iterator<char>());
+    std::string vertexSource((std::istreambuf_iterator<char>(vertexFile)), std::istreambuf_iterator<char>());
     std::ifstream fragmentFile("./assets/shader/basic.frag");
-    std::string fragmentSource((std::istreambuf_iterator<char
-        >(fragmentFile)), std::istreambuf_iterator<char>());
+    std::string fragmentSource((std::istreambuf_iterator<char>(fragmentFile)), std::istreambuf_iterator<char>());
 
     gla::Program program(vertexSource, fragmentSource);
     program.bind();
     program.setUniformMat4f("view", glm::value_ptr(camera.getViewMatrix()));
 
-    glm::mat4 projection = glm::perspective(glm::radians(camera.zoom), (float) WIDTH / (float) HEIGHT, 0.1f, 100.0f);
+    projection = glm::perspective(glm::radians(camera.zoom), (float) WIDTH / (float) HEIGHT, 0.1f, 100.0f);
     program.setUniformMat4f("projection", glm::value_ptr(projection));
 
     glm::mat4 model = glm::mat4(1.0f);
@@ -132,6 +143,11 @@ int main(int, char**){
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
+        if (viewportResized) {
+            program.setUniformMat4f("projection", glm::value_ptr(projection));
+            viewportResized = false;
+        }
+
         processInput(window);
         program.setUniformMat4f("view", glm::value_ptr(camera.getViewMatrix()));
 
@@ -139,7 +155,7 @@ int main(int, char**){
 
         program.bind();
         vao.bind();
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
 
