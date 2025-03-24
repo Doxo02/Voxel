@@ -17,6 +17,7 @@ Camera::Camera(float posX, float posY, float posZ, float upX, float upY, float u
 }
 
 glm::mat4 Camera::getViewMatrix() {
+    // return glm::lookAt(glm::vec3(4.0f, 4.0f, -10.0f), glm::vec3(4.0f, 4.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     return glm::lookAt(position, position + front, up);
 }
 
@@ -40,6 +41,10 @@ void Camera::processKeyboard(CameraMovement direction, float deltaTime) {
     if (direction == DOWN) {
         position -= up * velocity;
     }
+
+    if (position.x < 0) position.x = 0;
+    if (position.y < 0) position.y = 0;
+    if (position.z < 0) position.z = 0;
 }
 
 void Camera::processMouseMovement(float xoffset, float yoffset, GLboolean constrainPitch) {

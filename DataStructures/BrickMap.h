@@ -17,9 +17,9 @@ struct BrickMap {
         0x000000000000003F,
         0x000000000000007F
     };
-
-    uint32_t colorPointer;
-    uint8_t LODColor[3];
+    
+    uint32_t colorOffset;
+    glm::ivec3 position;
 };
 
 class BrickGrid {

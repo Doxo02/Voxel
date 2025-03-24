@@ -12,41 +12,26 @@
 
 #include "Rendering/Camera.h"
 
+#include "DataStructures/BrickMap.h"
+
 #include <fstream>
 #include <iostream>
 
 #define WIDTH 800
 #define HEIGHT 600
 
-struct Vertex {
-    glm::vec3 position;
-    glm::vec4 color;
-};
+const int brickGridSizeX = 64;
+const int brickGridSizeY = 32;
+const int brickGridSizeZ = 64;
 
-std::vector<Vertex> vertices = {
-    {{-1, -1, -1}, {1.0f, 0.0f, 0.0f, 1.0f}},      // front bottom-left
-    {{1, -1, -1}, {0.0f, 1.0f, 0.0f, 1.0f}},       // front top-left
-    {{1, 1, -1}, {0.0f, 0.0f, 1.0f, 1.0f}},        // front top-right
-    {{-1, 1, -1}, {1.0f, 1.0f, 0.0f, 1.0f}},       // front bottom-right
-    {{-1, -1, 1}, {1.0f, 0.0f, 1.0f, 1.0f}},       // back bottom-left
-    {{1, -1, 1}, {0.0f, 1.0f, 1.0f, 1.0f}},        // back top-left
-    {{1, 1, 1}, {1.0f, 1.0f, 1.0f, 1.0f}},         // back top-right
-    {{-1, 1, 1}, {1.0f, 0.0f, 0.0f, 1.0f}}         // back bottom-right
-};
+// Total number of possible bricks
+const int totalBrickCells = brickGridSizeX * brickGridSizeY * brickGridSizeZ;
 
-std::vector<unsigned int> indices = {
-    0, 1, 3, 3, 1, 2,
-    1, 5, 2, 2, 5, 6,
-    5, 4, 6, 6, 4, 7,
-    4, 0, 7, 7, 0, 3,
-    3, 2, 7, 7, 2, 6,
-    4, 5, 0, 0, 5, 1
-};
-
-Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
+Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
 glm::mat4 projection;
 
 bool viewportResized = false;
+bool cursorEnabled = false;
 
 // GLFW window Resize callback
 void onResize(GLFWwindow* window, int width, int height) {
@@ -57,6 +42,8 @@ void onResize(GLFWwindow* window, int width, int height) {
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+
+bool pressingESC = false;
 
 void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_W))
@@ -71,19 +58,34 @@ void processInput(GLFWwindow* window) {
         camera.processKeyboard(Camera::UP, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
         camera.processKeyboard(Camera::DOWN, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE))
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS && !pressingESC) {
+        pressingESC = true;
+        if (cursorEnabled) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        } else {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+
+        cursorEnabled = !cursorEnabled;
+    }
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_RELEASE)
+        pressingESC = false;
 }
 
 double lastX = 400;
 double lastY = 400;
 void mouseCallback(GLFWwindow* window, double xPos, double yPos) {
+    if (cursorEnabled) return;
     double xOffset = lastX - xPos;
     double yOffset = lastY - yPos;
     lastX = xPos;
     lastY = yPos;
 
     camera.processMouseMovement(xOffset, yOffset);
+}
+
+void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+    camera.processMouseScroll(yoffset);
 }
 
 int main(int, char**){
@@ -104,6 +106,7 @@ int main(int, char**){
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, mouseCallback);
+    glfwSetScrollCallback(window, scrollCallback);
 
     glfwMakeContextCurrent(window);
 
@@ -115,28 +118,116 @@ int main(int, char**){
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glViewport(0, 0, WIDTH, HEIGHT);
 
-    gla::VertexArray vao;
-    vao.bind();
-    gla::VertexBuffer vbo(vertices.data(), vertices.size() * sizeof(Vertex));
-    gla::ElementBuffer ebo(indices.data(), indices.size() * sizeof(unsigned int));
-
-    vao.setAttribute(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
-    vao.setAttribute(1, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
-
-    std::ifstream vertexFile("./assets/shader/basic.vert");
+    std::ifstream vertexFile("/home/lars/dev/Voxel/assets/shader/raymarch.vert");
     std::string vertexSource((std::istreambuf_iterator<char>(vertexFile)), std::istreambuf_iterator<char>());
-    std::ifstream fragmentFile("./assets/shader/basic.frag");
+    std::ifstream fragmentFile("/home/lars/dev/Voxel/assets/shader/raymarch.frag");
     std::string fragmentSource((std::istreambuf_iterator<char>(fragmentFile)), std::istreambuf_iterator<char>());
 
     gla::Program program(vertexSource, fragmentSource);
     program.bind();
-    program.setUniformMat4f("view", glm::value_ptr(camera.getViewMatrix()));
 
     projection = glm::perspective(glm::radians(camera.zoom), (float) WIDTH / (float) HEIGHT, 0.1f, 100.0f);
-    program.setUniformMat4f("projection", glm::value_ptr(projection));
 
-    glm::mat4 model = glm::mat4(1.0f);
-    program.setUniformMat4f("model", glm::value_ptr(model));
+    struct GPUBrick {
+        uint64_t bitmask[8];
+        uint32_t colorOffset;
+    };
+    struct Color {
+        float r, g, b, a;
+    };
+
+    std::vector<GPUBrick> bricks;
+    std::vector<glm::ivec3> brickPositions;
+
+    bricks.push_back(GPUBrick {
+        {
+            0x0000000000000001,
+            0x0000000000000003,
+            0x0000000000000007,
+            0x000000000000000F,
+            0x000000000000001F,
+            0x000000000000003F,
+            0x000000000000007F,
+            0x00000000000000FF,
+        },
+         0
+    });
+    bricks.push_back(GPUBrick {
+        {
+            0x0000000000000000,
+            0x000000FFFF000000,
+            0x00000FFFFFF00000,
+            0x0000FFFFFFFF0000,
+            0x0000FFFFFFFF0000,
+            0x00000FFFFFF00000,
+            0x000000FFFF000000,
+            0x0000000000000000,
+        },
+         0
+    });
+    brickPositions.push_back(glm::ivec3(0));
+    brickPositions.push_back(glm::ivec3(3, 3, 3));
+
+    std::vector<Color> voxelColors;
+
+    for (int i = 0; i < 512; i++) {
+        voxelColors.push_back(Color{1.0f, (float) i / 512.0f, 0.0f, 1.0f});
+    }
+
+    std::vector<uint32_t> brickMapIndexData(totalBrickCells, 0xFFFFFFFF);
+
+    struct hash_ivec3 {
+        size_t operator()(const glm::ivec3& v) const {
+            return std::hash<int>()(v.x) ^ std::hash<int>()(v.y << 1) ^ std::hash<int>()(v.z << 2);
+        }
+    };
+
+    std::unordered_map<glm::ivec3, int, hash_ivec3> brickIndexLookup;
+
+    for (int i = 0; i < bricks.size(); i++) {
+        glm::ivec3 brickPos = brickPositions[i];
+        brickIndexLookup[brickPos] = i;
+
+        int flatIndex = brickPos.x + brickPos.y * brickGridSizeX + brickPos.z * brickGridSizeX * brickGridSizeY;
+
+        brickMapIndexData[flatIndex] = i;
+    }
+
+    GLuint brickMapTex;
+    glGenTextures(1, &brickMapTex);
+    glBindTexture(GL_TEXTURE_3D, brickMapTex);
+
+    glTexStorage3D(GL_TEXTURE_3D, 1, GL_R32UI, brickGridSizeX, brickGridSizeY, brickGridSizeZ);
+    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0,
+                    brickGridSizeX, brickGridSizeY, brickGridSizeZ,
+                    GL_RED_INTEGER, GL_UNSIGNED_INT, brickMapIndexData.data());
+
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    program.setUniform1i("brickMap", 0);
+
+    GLuint brickSSBO;
+    glGenBuffers(1, &brickSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, brickSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, bricks.size() * sizeof(GPUBrick), bricks.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, brickSSBO);
+
+    GLuint colorSSBO;
+    glGenBuffers(1, &colorSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, colorSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, voxelColors.size() * sizeof(Color), voxelColors.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, colorSSBO);
+
+    glm::mat4 invVP = glm::inverse(projection * camera.getViewMatrix());
+    program.setUniformMat4f("invViewProj", glm::value_ptr(invVP));
+    program.setUniform3f("cameraPos", camera.position.x, camera.position.y, camera.position.z);
+    program.setUniform2f("resolution", WIDTH, HEIGHT);
+
+    GLuint dummyVAO;
+    glGenVertexArrays(1, &dummyVAO);
 
     while(!glfwWindowShouldClose(window)) {
         float currentFrame = glfwGetTime();
@@ -144,18 +235,26 @@ int main(int, char**){
         lastFrame = currentFrame;
 
         if (viewportResized) {
-            program.setUniformMat4f("projection", glm::value_ptr(projection));
+            program.setUniform2f("resolution", WIDTH, HEIGHT);
             viewportResized = false;
         }
 
+        glm::mat4 invVP = glm::inverse(projection * camera.getViewMatrix());
+        program.setUniformMat4f("invViewProj", glm::value_ptr(invVP));
+        program.setUniform3f("cameraPos", camera.position.x, camera.position.y, camera.position.z);
+
         processInput(window);
-        program.setUniformMat4f("view", glm::value_ptr(camera.getViewMatrix()));
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         program.bind();
-        vao.bind();
-        glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
+        glBindVertexArray(dummyVAO);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_3D, brickMapTex);
+        program.setUniform1i("brickMap", 0);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, brickSSBO);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, colorSSBO);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
 
         glfwSwapBuffers(window);
 
