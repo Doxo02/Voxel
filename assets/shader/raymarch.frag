@@ -29,6 +29,7 @@ layout(std430, binding = 2) buffer ColorBuffer {
 const float STEP_SIZE = 0.05f; // Tune as needed
 const int MAX_STEPS = 5000;
 
+// TODO: make uniform
 const vec3 gridSize = vec3(64, 32, 64);
 
 // Util: compute linear voxel index inside a brick (0–511)
@@ -83,7 +84,6 @@ vec4 raymarch(vec3 ro, vec3 rd) {
             break;
         }
 
-        // Get brick index
         uint brickIndex = texelFetch(brickMap, brickCoord, 0).r;
 
         if (brickIndex != 0xFFFFFFFFu) {
