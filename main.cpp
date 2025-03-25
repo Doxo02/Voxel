@@ -24,26 +24,30 @@ const int brickGridSizeX = 64;
 const int brickGridSizeY = 32;
 const int brickGridSizeZ = 64;
 
-// Total number of possible bricks
 const int totalBrickCells = brickGridSizeX * brickGridSizeY * brickGridSizeZ;
 
 Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
 glm::mat4 projection;
 
 bool viewportResized = false;
+glm::ivec2 curRes(WIDTH, HEIGHT);
 bool cursorEnabled = false;
+
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
+
+bool pressingESC = false;
+
+double lastX = 400;
+double lastY = 400;
 
 // GLFW window Resize callback
 void onResize(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
     projection = glm::perspective(glm::radians(camera.zoom), (float) width / (float) height, 0.1f, 100.0f);
     viewportResized = true;
+    curRes = glm::ivec2(width, height);
 }
-
-float deltaTime = 0.0f;
-float lastFrame = 0.0f;
-
-bool pressingESC = false;
 
 void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_W))
@@ -72,8 +76,6 @@ void processInput(GLFWwindow* window) {
         pressingESC = false;
 }
 
-double lastX = 400;
-double lastY = 400;
 void mouseCallback(GLFWwindow* window, double xPos, double yPos) {
     if (cursorEnabled) return;
     double xOffset = lastX - xPos;
@@ -235,7 +237,7 @@ int main(int, char**){
         lastFrame = currentFrame;
 
         if (viewportResized) {
-            program.setUniform2f("resolution", WIDTH, HEIGHT);
+            program.setUniform2f("resolution", curRes.x, curRes.y);
             viewportResized = false;
         }
 

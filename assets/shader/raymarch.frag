@@ -27,7 +27,7 @@ layout(std430, binding = 2) buffer ColorBuffer {
 };
 
 const float STEP_SIZE = 0.05f; // Tune as needed
-const int MAX_STEPS = 5000;
+const int MAX_STEPS = 512;
 
 // TODO: make uniform
 const vec3 gridSize = vec3(64, 32, 64);
@@ -59,27 +59,22 @@ uint getColorIndex(uint brickIndex, int voxelIndex) {
 // Main raymarch
 vec4 raymarch(vec3 ro, vec3 rd) {
     vec4 finalColor = vec4(0.0);
-    float t = 0.0;
     const float maxDist = 100.0;
 
-    ivec3 lastVoxel = ivec3(-999);
+    ivec3 voxel = ivec3(floor(ro));
+    vec3 deltaDist = abs(vec3(1.0) / rd); // distance between voxel boundaries
+    ivec3 step = ivec3(sign(rd)); // step direction
+    vec3 nextVoxelBoundary = (voxel + max(step, ivec3(0))); // next boundary
+    vec3 tMax = (vec3(nextVoxelBoundary) - ro) / rd; // distance to first boundary
 
-    for (int step = 0; step < MAX_STEPS; ++step) {
-        vec3 p = ro + rd * t;
+    float totalDist = 0.0;
 
-        if (t > maxDist) break;
+    for (int i = 0; i < MAX_STEPS; ++i) {
+        if (totalDist > maxDist) break;
 
-        ivec3 worldVoxel = ivec3(floor(p));
+        ivec3 brickCoord = ivec3(floor(voxel / 8.0));
+        ivec3 localPos = voxel - brickCoord * 8;
 
-        if (worldVoxel == lastVoxel) {
-            t += STEP_SIZE;
-            continue;
-        }
-
-        lastVoxel = worldVoxel;
-
-        ivec3 brickCoord = ivec3(floor(worldVoxel / 8.0));
-        ivec3 localPos = worldVoxel - brickCoord * 8;
         if (any(lessThan(brickCoord, ivec3(0))) || any(greaterThanEqual(brickCoord, gridSize))) {
             break;
         }
@@ -90,22 +85,28 @@ vec4 raymarch(vec3 ro, vec3 rd) {
             int voxelIndex = getVoxelIndex(localPos);
 
             if (isVoxelSolid(brickIndex, voxelIndex)) {
-                uint colorIdx = getColorIndex(brickIndex, voxelIndex);
-                vec4 voxelColor = colors[colorIdx];
-
-                // vec3 debugColor = vec3(brickCoord) / vec3(gridSize);
-                // return vec4(debugColor, 1.0f);
-
                 // vec3 localColor = vec3(localPos) / 8;
                 // return vec4(localColor, 1.0f);
 
-                // Basic shading (e.g., eye light)
-                finalColor = voxelColor;
+                uint colorIdx = getColorIndex(brickIndex, voxelIndex);
+                finalColor = colors[colorIdx];
                 break;
             }
         }
 
-        t += STEP_SIZE;
+        if (tMax.x < tMax.y && tMax.x < tMax.z) {
+            voxel.x += step.x;
+            totalDist = tMax.x;
+            tMax.x += deltaDist.x;
+        } else if (tMax.y < tMax.z) {
+            voxel.y += step.y;
+            totalDist = tMax.y;
+            tMax.y += deltaDist.y;
+        } else {
+            voxel.z += step.z;
+            totalDist = tMax.z;
+            tMax.z += deltaDist.z;
+        }
     }
 
     return finalColor;
