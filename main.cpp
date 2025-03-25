@@ -1,9 +1,11 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <vector>
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/norm.hpp>
 
 #include "GL_Abstract/Program.h"
 #include "GL_Abstract/VertexArray.h"
@@ -130,70 +132,31 @@ int main(int, char**){
 
     projection = glm::perspective(glm::radians(camera.zoom), (float) WIDTH / (float) HEIGHT, 0.1f, 100.0f);
 
-    struct GPUBrick {
-        uint64_t bitmask[8];
-        uint32_t colorOffset;
-    };
-    struct Color {
-        float r, g, b, a;
-    };
+    BrickMap brickMap(glm::ivec3(brickGridSizeX, brickGridSizeY, brickGridSizeZ));
 
-    std::vector<GPUBrick> bricks;
-    std::vector<glm::ivec3> brickPositions;
+    const glm::vec3 sphereCenter = glm::vec3(40.0f, 20.0f, 40.0f);
+    const float sphereRadius = 10.0f;
+    const float radiusSquared = sphereRadius * sphereRadius;
 
-    bricks.push_back(GPUBrick {
-        {
-            0x0000000000000001,
-            0x0000000000000003,
-            0x0000000000000007,
-            0x000000000000000F,
-            0x000000000000001F,
-            0x000000000000003F,
-            0x000000000000007F,
-            0x00000000000000FF,
-        },
-         0
-    });
-    bricks.push_back(GPUBrick {
-        {
-            0x0000000000000000,
-            0x000000FFFF000000,
-            0x00000FFFFFF00000,
-            0x0000FFFFFFFF0000,
-            0x0000FFFFFFFF0000,
-            0x00000FFFFFF00000,
-            0x000000FFFF000000,
-            0x0000000000000000,
-        },
-         0
-    });
-    brickPositions.push_back(glm::ivec3(0));
-    brickPositions.push_back(glm::ivec3(3, 3, 3));
+    glm::ivec3 minVoxel = glm::floor(sphereCenter - glm::vec3(sphereRadius));
+    glm::ivec3 maxVoxel = glm::ceil(sphereCenter + glm::vec3(sphereRadius));
 
-    std::vector<Color> voxelColors;
+    for (int z = minVoxel.z; z < maxVoxel.z; z++) {
+        for (int y = minVoxel.y; y < maxVoxel.y; y++) {
+            for (int x = minVoxel.x; x < maxVoxel.x; x++) {
+                glm::vec3 voxelPos = glm::vec3(x, y, z);
+                float dist2 = glm::distance2(voxelPos, sphereCenter);
 
-    for (int i = 0; i < 512; i++) {
-        voxelColors.push_back(Color{1.0f, (float) i / 512.0f, 0.0f, 1.0f});
-    }
-
-    std::vector<uint32_t> brickMapIndexData(totalBrickCells, 0xFFFFFFFF);
-
-    struct hash_ivec3 {
-        size_t operator()(const glm::ivec3& v) const {
-            return std::hash<int>()(v.x) ^ std::hash<int>()(v.y << 1) ^ std::hash<int>()(v.z << 2);
+                if (dist2 <= radiusSquared) {
+                    brickMap.setVoxel(voxelPos, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+                }
+            }
         }
-    };
-
-    std::unordered_map<glm::ivec3, int, hash_ivec3> brickIndexLookup;
-
-    for (int i = 0; i < bricks.size(); i++) {
-        glm::ivec3 brickPos = brickPositions[i];
-        brickIndexLookup[brickPos] = i;
-
-        int flatIndex = brickPos.x + brickPos.y * brickGridSizeX + brickPos.z * brickGridSizeX * brickGridSizeY;
-
-        brickMapIndexData[flatIndex] = i;
     }
+
+    brickMap.setVoxel(glm::vec3(7, 7, 7), glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+
+    GPUBrickMap gpuBrickMap = brickMap.getGPUMap();
 
     GLuint brickMapTex;
     glGenTextures(1, &brickMapTex);
@@ -202,7 +165,7 @@ int main(int, char**){
     glTexStorage3D(GL_TEXTURE_3D, 1, GL_R32UI, brickGridSizeX, brickGridSizeY, brickGridSizeZ);
     glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0,
                     brickGridSizeX, brickGridSizeY, brickGridSizeZ,
-                    GL_RED_INTEGER, GL_UNSIGNED_INT, brickMapIndexData.data());
+                    GL_RED_INTEGER, GL_UNSIGNED_INT, gpuBrickMap.indexData.data());
 
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -214,19 +177,22 @@ int main(int, char**){
     GLuint brickSSBO;
     glGenBuffers(1, &brickSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, brickSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, bricks.size() * sizeof(GPUBrick), bricks.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gpuBrickMap.bricks.size() * sizeof(GPUBrick), gpuBrickMap.bricks.data(), GL_STATIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, brickSSBO);
 
     GLuint colorSSBO;
     glGenBuffers(1, &colorSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, colorSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, voxelColors.size() * sizeof(Color), voxelColors.data(), GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gpuBrickMap.colors.size() * sizeof(glm::vec4), gpuBrickMap.colors.data(), GL_STATIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, colorSSBO);
 
     glm::mat4 invVP = glm::inverse(projection * camera.getViewMatrix());
     program.setUniformMat4f("invViewProj", glm::value_ptr(invVP));
     program.setUniform3f("cameraPos", camera.position.x, camera.position.y, camera.position.z);
     program.setUniform2f("resolution", WIDTH, HEIGHT);
+
+    program.setUniform1ui("brickSize", BRICK_SIZE);
+    program.setUniform3f("gridSize", brickGridSizeX, brickGridSizeY, brickGridSizeZ);
 
     GLuint dummyVAO;
     glGenVertexArrays(1, &dummyVAO);

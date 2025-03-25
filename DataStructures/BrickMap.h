@@ -7,30 +7,30 @@
 #include <array>
 
 #define BRICK_SIZE 8
-#define BRICK_TOTAL 512
+#define VOXELS_PER_BRICK 512
 
 struct Voxel {
     glm::vec4 color = glm::vec4(0);
 };
 
-struct BrickMap {
+struct Brick {
     std::array<std::array<std::array<Voxel, BRICK_SIZE>, BRICK_SIZE>, BRICK_SIZE> voxels;
     glm::ivec3 pos;
 };
 
-struct GPUBrickMap {
+struct GPUBrick {
     uint64_t bitmask[8];
     uint32_t colorOffset;
 };
 
-struct GPUBrickGrid {
-    std::vector<GPUBrickMap> bricks;
-    std::vector<glm::ivec3> positions;
+struct GPUBrickMap {
+    std::vector<GPUBrick> bricks;
+    std::vector<uint32_t> indexData;
     std::vector<glm::vec4> colors;
 };
 
-class BrickGrid {
-    std::vector<BrickMap> bricks;
+class BrickMap {
+    std::vector<Brick> bricks;
 
     glm::ivec3 dimensions;
 
@@ -43,21 +43,22 @@ class BrickGrid {
     std::unordered_map<glm::ivec3, int, hash_ivec3> indexTable;
 
 public:
-    BrickGrid(glm::ivec3 dim) {
+    BrickMap(glm::ivec3 dim) {
         dimensions = dim;
     }
 
-    BrickMap& getBrick(glm::ivec3 pos) {
+    Brick& getBrick(glm::ivec3 pos) {
         if (indexTable.find(pos) != indexTable.end()) return bricks[indexTable[pos]];
 
-        BrickMap brick{.pos = pos};
+        Brick brick{.pos = pos};
         int index = bricks.size();
         bricks.push_back(brick);
         indexTable.insert({pos, index});
+        return bricks[index];
     }
 
     void fillBrick(glm::ivec3 pos, glm::vec4 color) {
-        BrickMap& brick = getBrick(pos);
+        Brick& brick = getBrick(pos);
         
         for (int x = 0; x < BRICK_SIZE; x++) {
             for (int y = 0; y < BRICK_SIZE; y++) {
@@ -68,7 +69,7 @@ public:
         }
     }
 
-    void setBrick(glm::ivec3 pos, const BrickMap& brick) {
+    void setBrick(glm::ivec3 pos, const Brick& brick) {
         getBrick(pos) = brick;
     }
 
@@ -82,22 +83,23 @@ public:
         return bricks.size();
     }
 
-    std::vector<BrickMap>& getBricks() {
+    std::vector<Brick>& getBricks() {
         return bricks;
     }
 
-    GPUBrickGrid getGPUGrid() {
-        GPUBrickGrid ret{};
+    GPUBrickMap getGPUMap() {
+        GPUBrickMap ret{};
 
         ret.bricks.resize(bricks.size());
+        ret.indexData.resize(dimensions.x * dimensions.y * dimensions.z, 0xFFFFFFFF);
 
         for (auto& brick : bricks) {
-            GPUBrickMap gpuBrick{};
+            GPUBrick gpuBrick{};
             gpuBrick.colorOffset = ret.colors.size();
-            ret.positions.push_back(brick.pos);
+            ret.indexData[brick.pos.x + brick.pos.y * dimensions.x + brick.pos.z * dimensions.x * dimensions.y] = ret.bricks.size();
             for (int z = 0; z < BRICK_SIZE; z++) {
-                for (int x = 0; x < BRICK_SIZE; x++) {
-                    for (int y = 0; y < BRICK_SIZE; y++) {
+                for (int y = 0; y < BRICK_SIZE; y++) {
+                    for (int x = 0; x < BRICK_SIZE; x++) {
                         if (brick.voxels[x][y][z].color != glm::vec4(0)) {
                             gpuBrick.bitmask[z] |= 1 << x + y * BRICK_SIZE;
                             ret.colors.push_back(brick.voxels[x][y][z].color);

@@ -8,6 +8,9 @@ uniform mat4 invViewProj;
 uniform vec3 cameraPos;
 uniform vec2 resolution;
 
+uniform uint brickSize;
+uniform vec3 gridSize;
+
 // Voxel world grid (brick index map)
 layout(binding = 0) uniform usampler3D brickMap; // brick indices
 
@@ -28,9 +31,6 @@ layout(std430, binding = 2) buffer ColorBuffer {
 
 const float STEP_SIZE = 0.05f; // Tune as needed
 const int MAX_STEPS = 512;
-
-// TODO: make uniform
-const vec3 gridSize = vec3(64, 32, 64);
 
 // Util: compute linear voxel index inside a brick (0–511)
 int getVoxelIndex(ivec3 localPos) {
@@ -72,8 +72,8 @@ vec4 raymarch(vec3 ro, vec3 rd) {
     for (int i = 0; i < MAX_STEPS; ++i) {
         if (totalDist > maxDist) break;
 
-        ivec3 brickCoord = ivec3(floor(voxel / 8.0));
-        ivec3 localPos = voxel - brickCoord * 8;
+        ivec3 brickCoord = ivec3(floor(voxel / float(brickSize)));
+        ivec3 localPos = voxel - brickCoord * int(brickSize);
 
         if (any(lessThan(brickCoord, ivec3(0))) || any(greaterThanEqual(brickCoord, gridSize))) {
             break;
@@ -85,8 +85,8 @@ vec4 raymarch(vec3 ro, vec3 rd) {
             int voxelIndex = getVoxelIndex(localPos);
 
             if (isVoxelSolid(brickIndex, voxelIndex)) {
-                // vec3 localColor = vec3(localPos) / 8;
-                // return vec4(localColor, 1.0f);
+                vec3 localColor = vec3(localPos) / 8;
+                return vec4(localColor, 1.0f);
 
                 uint colorIdx = getColorIndex(brickIndex, voxelIndex);
                 finalColor = colors[colorIdx];
