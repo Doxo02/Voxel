@@ -150,7 +150,7 @@ int main(int, char**){
     BrickMap brickMap(glm::ivec3(brickGridSizeX, brickGridSizeY, brickGridSizeZ));
 
     const glm::vec3 sphereCenter = glm::vec3(40.0f, 20.0f, 40.0f);
-    const float sphereRadius = 10.0f;
+    const float sphereRadius = 10.5f;
     const float radiusSquared = sphereRadius * sphereRadius;
 
     glm::ivec3 minVoxel = glm::floor(sphereCenter - glm::vec3(sphereRadius));
@@ -169,7 +169,8 @@ int main(int, char**){
         }
     }
 
-    brickMap.setVoxel(glm::vec3(7, 7, 7), glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+    brickMap.setVoxel(glm::ivec3(0, 0, 0), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
+    brickMap.setVoxel(glm::ivec3(7, 7, 7), glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
     GPUBrickMap gpuBrickMap = brickMap.getGPUMap();
 

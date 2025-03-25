@@ -47,11 +47,19 @@ bool isVoxelSolid(uint brickIndex, int voxelIndex) {
 // Util: count set bits before a given voxel in bitmask (slow version)
 uint getColorIndex(uint brickIndex, int voxelIndex) {
     Brick brick = bricks[brickIndex];
-    int count = 0;
-    for (int i = 0; i < voxelIndex; ++i) {
-        if (isVoxelSolid(brickIndex, i)) {
-            count++;
+    uint count = 0;
+    for (int i = 0; i < brickSize; i++) {
+        if (voxelIndex / 64 - i == 0) {
+            uint64_t word = brick.bitmask[i] >> (voxelIndex % 64);
+            uvec2 mask = unpackUint2x32(word);
+            uvec2 tmpCount = bitCount(mask);
+            count += tmpCount.x + tmpCount.y - 1;
+            break;
         }
+        uint64_t word = brick.bitmask[i];
+        uvec2 mask = unpackUint2x32(word);
+        uvec2 tmpCount = bitCount(mask);
+        count += tmpCount.x + tmpCount.y;
     }
     return brick.colorOffset + count;
 }
@@ -69,7 +77,7 @@ vec4 raymarch(vec3 ro, vec3 rd) {
 
     float totalDist = 0.0;
 
-    for (int i = 0; i < MAX_STEPS; ++i) {
+    for (int i = 0; i < MAX_STEPS; i++) {
         if (totalDist > maxDist) break;
 
         ivec3 brickCoord = ivec3(floor(voxel / float(brickSize)));
