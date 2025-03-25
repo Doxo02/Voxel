@@ -85,8 +85,8 @@ vec4 raymarch(vec3 ro, vec3 rd) {
             int voxelIndex = getVoxelIndex(localPos);
 
             if (isVoxelSolid(brickIndex, voxelIndex)) {
-                vec3 localColor = vec3(localPos) / 8;
-                return vec4(localColor, 1.0f);
+                // vec3 localColor = vec3(localPos) / 8;
+                // return vec4(localColor, 1.0f);
 
                 uint colorIdx = getColorIndex(brickIndex, voxelIndex);
                 finalColor = colors[colorIdx];

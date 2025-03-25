@@ -101,7 +101,7 @@ public:
                 for (int y = 0; y < BRICK_SIZE; y++) {
                     for (int x = 0; x < BRICK_SIZE; x++) {
                         if (brick.voxels[x][y][z].color != glm::vec4(0)) {
-                            gpuBrick.bitmask[z] |= 1 << x + y * BRICK_SIZE;
+                            gpuBrick.bitmask[z] |= 1ULL << (x + y * BRICK_SIZE);
                             ret.colors.push_back(brick.voxels[x][y][z].color);
                         }
                     }

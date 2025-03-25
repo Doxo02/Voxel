@@ -19,6 +19,10 @@
 #include <fstream>
 #include <iostream>
 
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_opengl3.h>
+
 #define WIDTH 800
 #define HEIGHT 600
 
@@ -113,6 +117,7 @@ int main(int, char**){
     glfwSetScrollCallback(window, scrollCallback);
 
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(0);
 
     if(glewInit() != GLEW_OK){
         return -1;
@@ -121,6 +126,16 @@ int main(int, char**){
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glViewport(0, 0, WIDTH, HEIGHT);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NoKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavNoCaptureKeyboard;
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(window, true);          // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
+    ImGui_ImplOpenGL3_Init();
 
     std::ifstream vertexFile("/home/lars/dev/Voxel/assets/shader/raymarch.vert");
     std::string vertexSource((std::istreambuf_iterator<char>(vertexFile)), std::istreambuf_iterator<char>());
@@ -202,6 +217,15 @@ int main(int, char**){
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::Begin("Debug Info");
+        ImGui::Text("%.4f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
+        ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
+        ImGui::End();
+
         if (viewportResized) {
             program.setUniform2f("resolution", curRes.x, curRes.y);
             viewportResized = false;
@@ -224,10 +248,17 @@ int main(int, char**){
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, colorSSBO);
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);
 
         glfwPollEvents();
     }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     glfwTerminate();
     return 0;
