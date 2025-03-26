@@ -69,51 +69,41 @@ vec4 raymarch(vec3 ro, vec3 rd) {
     vec4 finalColor = vec4(0.0);
     const float maxDist = 100.0;
 
-    ivec3 voxel = ivec3(floor(ro));
-    vec3 deltaDist = abs(vec3(1.0) / rd); // distance between voxel boundaries
-    ivec3 step = ivec3(sign(rd)); // step direction
-    vec3 nextVoxelBoundary = (voxel + max(step, ivec3(0))); // next boundary
-    vec3 tMax = (vec3(nextVoxelBoundary) - ro) / rd; // distance to first boundary
+    ivec3 curVox = ivec3(floor(ro));
+    vec3 s = sqrt(1 + rd * rd);
+    ivec3 stp = ivec3(sign(rd));
+
+    vec3 tMax = ro + s;
 
     float totalDist = 0.0;
-
     for (int i = 0; i < MAX_STEPS; i++) {
         if (totalDist > maxDist) break;
 
-        ivec3 brickCoord = ivec3(floor(voxel / float(brickSize)));
-        ivec3 localPos = voxel - brickCoord * int(brickSize);
-
-        if (any(lessThan(brickCoord, ivec3(0))) || any(greaterThanEqual(brickCoord, gridSize))) {
-            break;
-        }
+        ivec3 brickCoord = curVox / int(brickSize);
 
         uint brickIndex = texelFetch(brickMap, brickCoord, 0).r;
-
         if (brickIndex != 0xFFFFFFFFu) {
-            int voxelIndex = getVoxelIndex(localPos);
+            ivec3 localPos = curVox - brickCoord * 8;
+            int voxelIndex = getVoxelIndex(curVox);
 
             if (isVoxelSolid(brickIndex, voxelIndex)) {
-                // vec3 localColor = vec3(localPos) / 8;
-                // return vec4(localColor, 1.0f);
-
-                uint colorIdx = getColorIndex(brickIndex, voxelIndex);
-                finalColor = colors[colorIdx];
+                finalColor = colors[getColorIndex(brickIndex, voxelIndex)];
                 break;
             }
         }
 
         if (tMax.x < tMax.y && tMax.x < tMax.z) {
-            voxel.x += step.x;
             totalDist = tMax.x;
-            tMax.x += deltaDist.x;
+            tMax.x += s.x;
+            curVox.x += stp.x;
         } else if (tMax.y < tMax.z) {
-            voxel.y += step.y;
             totalDist = tMax.y;
-            tMax.y += deltaDist.y;
+            tMax.y += s.y;
+            curVox.y += stp.y;
         } else {
-            voxel.z += step.z;
             totalDist = tMax.z;
-            tMax.z += deltaDist.z;
+            tMax.z += s.z;
+            curVox.z += stp.z;
         }
     }
 
