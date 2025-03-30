@@ -225,6 +225,7 @@ int main(int, char**){
         ImGui::Begin("Debug Info");
         ImGui::Text("%.4f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
         ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
+        ImGui::Text("Camere pos: (%.2f, %.2f, %.2f)", camera.position.x, camera.position.y, camera.position.z);
         ImGui::End();
 
         if (viewportResized) {

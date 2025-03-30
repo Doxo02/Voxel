@@ -30,7 +30,7 @@ layout(std430, binding = 2) buffer ColorBuffer {
 };
 
 const float STEP_SIZE = 0.05f; // Tune as needed
-const int MAX_STEPS = 512;
+const int MAX_STEPS = 200;
 
 // Util: compute linear voxel index inside a brick (0–511)
 int getVoxelIndex(ivec3 localPos) {
@@ -64,50 +64,72 @@ uint getColorIndex(uint brickIndex, int voxelIndex) {
     return brick.colorOffset + count;
 }
 
-// Main raymarch
-vec4 raymarch(vec3 ro, vec3 rd) {
-    vec4 finalColor = vec4(0.0);
-    const float maxDist = 100.0;
-
-    ivec3 curVox = ivec3(floor(ro));
-    vec3 s = sqrt(1 + rd * rd);
+vec4 traceBlock(vec3 ro, vec3 rd, uint brickIndex) {
+    ro = clamp(ro, vec3(0.0001), vec3(7.9999));
+    ivec3 voxel = ivec3(floor(ro));
     ivec3 stp = ivec3(sign(rd));
-
-    vec3 tMax = ro + s;
-
-    float totalDist = 0.0;
-    for (int i = 0; i < MAX_STEPS; i++) {
-        if (totalDist > maxDist) break;
-
-        ivec3 brickCoord = curVox / int(brickSize);
-
-        uint brickIndex = texelFetch(brickMap, brickCoord, 0).r;
-        if (brickIndex != 0xFFFFFFFFu) {
-            ivec3 localPos = curVox - brickCoord * 8;
-            int voxelIndex = getVoxelIndex(curVox);
-
-            if (isVoxelSolid(brickIndex, voxelIndex)) {
-                finalColor = colors[getColorIndex(brickIndex, voxelIndex)];
-                break;
-            }
-        }
-
+    vec3 deltaDist = 1.0 / rd;
+    vec3 tMax = ((voxel - ro) + 0.5 + stp * 0.5) * deltaDist;
+    deltaDist = abs(deltaDist);
+    
+    while (voxel.x <= 7.0 && voxel.x >= 0.0 && voxel.y <= 7.0 && voxel.y >= 0.0 && voxel.z <= 7.0 && voxel.z >= 0.0) {
+        int voxelIndex = getVoxelIndex(voxel);
+        if (isVoxelSolid(brickIndex, voxelIndex))
+            return colors[getColorIndex(brickIndex, voxelIndex)];
+        
         if (tMax.x < tMax.y && tMax.x < tMax.z) {
-            totalDist = tMax.x;
-            tMax.x += s.x;
-            curVox.x += stp.x;
+            voxel.x += stp.x;
+            tMax.x += deltaDist.x;
         } else if (tMax.y < tMax.z) {
-            totalDist = tMax.y;
-            tMax.y += s.y;
-            curVox.y += stp.y;
+            voxel.y += stp.y;
+            tMax.y += deltaDist.y;
         } else {
-            totalDist = tMax.z;
-            tMax.z += s.z;
-            curVox.z += stp.z;
+            voxel.z += stp.z;
+            tMax.z += deltaDist.z;
         }
     }
+    
+    return vec4(0.0);
+}
 
-    return finalColor;
+vec4 traceWorld(vec3 ro, vec3 rd) {    
+    ivec3 brick = ivec3(floor(ro));
+    ivec3 stp = ivec3(sign(rd));
+    vec3 deltaDist = 1.0 / rd;
+    vec3 tMax = ((brick-ro) + 0.5 + stp * 0.5) * deltaDist;
+    deltaDist = abs(deltaDist);
+    
+    for (int i = 0; i < MAX_STEPS; i++) {
+            uint brickIndex = texelFetch(brickMap, brick, 0).r;
+
+        if (brickIndex != 0xFFFFFFFFu) {
+            vec3 mini = ((brick - ro) + 0.5 - 0.5 * vec3(stp)) * (1.0 / rd);
+            float d = max (mini.x, max (mini.y, mini.z));
+            vec3 intersect = ro + rd*d;
+            vec3 uv3d = intersect - brick;
+
+            if (brick == floor(ro)) // Handle edge case where camera origin is inside of block
+                uv3d = ro - brick;
+
+            vec4 hit = traceBlock(uv3d * 8.0, rd, brickIndex);
+
+            if (hit.a > 0.95) 
+                    return hit;
+        }
+       
+        if (tMax.x < tMax.y && tMax.x < tMax.z) {
+            brick.x += stp.x;
+            tMax.x += deltaDist.x;
+        } else if (tMax.y < tMax.z) {
+            brick.y += stp.y;
+            tMax.y += deltaDist.y;
+        } else {
+            brick.z += stp.z;
+            tMax.z += deltaDist.z;
+        }
+    }
+    
+    return vec4(0.0);
 }
 
 // Entry point
@@ -119,7 +141,7 @@ void main() {
     vec4 rayEndH   = invViewProj * vec4(ndc, 1.0, 1.0);
 
     vec3 ro = cameraPos;
-    vec3 rd = normalize((rayEndH.xyz / rayEndH.w) - (rayStartH.xyz / rayStartH.w));
+    vec3 rd = normalize((rayEndH.xyz / max(rayEndH.w, 1e-6)) - (rayStartH.xyz / max(rayStartH.w, 1e-6)));
 
-    outColor = raymarch(ro, rd);
+    outColor = traceWorld(ro, rd);
 }
