@@ -64,7 +64,7 @@ uint getColorIndex(uint brickIndex, int voxelIndex) {
     return brick.colorOffset + count;
 }
 
-vec4 traceBlock(vec3 ro, vec3 rd, uint brickIndex) {
+vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex) {
     ro = clamp(ro, vec3(0.0001), vec3(7.9999));
     ivec3 voxel = ivec3(floor(ro));
     ivec3 stp = ivec3(sign(rd));
@@ -74,8 +74,10 @@ vec4 traceBlock(vec3 ro, vec3 rd, uint brickIndex) {
     
     while (voxel.x <= 7.0 && voxel.x >= 0.0 && voxel.y <= 7.0 && voxel.y >= 0.0 && voxel.z <= 7.0 && voxel.z >= 0.0) {
         int voxelIndex = getVoxelIndex(voxel);
-        if (isVoxelSolid(brickIndex, voxelIndex))
+        if (isVoxelSolid(brickIndex, voxelIndex)) {
+            // return vec4(vec3(voxel) / float(brickSize), 1.0);
             return colors[getColorIndex(brickIndex, voxelIndex)];
+        }
         
         if (tMax.x < tMax.y && tMax.x < tMax.z) {
             voxel.x += stp.x;
@@ -99,19 +101,22 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
     vec3 tMax = ((brick-ro) + 0.5 + stp * 0.5) * deltaDist;
     deltaDist = abs(deltaDist);
     
+    float totalDist = 0.0;
     for (int i = 0; i < MAX_STEPS; i++) {
-            uint brickIndex = texelFetch(brickMap, brick, 0).r;
+        if (totalDist > 25.0) break;
+
+        uint brickIndex = texelFetch(brickMap, brick, 0).r;
 
         if (brickIndex != 0xFFFFFFFFu) {
             vec3 mini = ((brick - ro) + 0.5 - 0.5 * vec3(stp)) * (1.0 / rd);
             float d = max (mini.x, max (mini.y, mini.z));
-            vec3 intersect = ro + rd*d;
+            vec3 intersect = ro + rd * d;
             vec3 uv3d = intersect - brick;
 
             if (brick == floor(ro)) // Handle edge case where camera origin is inside of block
                 uv3d = ro - brick;
 
-            vec4 hit = traceBlock(uv3d * 8.0, rd, brickIndex);
+            vec4 hit = traceBrick(uv3d * float(brickSize), rd, brickIndex);
 
             if (hit.a > 0.95) 
                     return hit;
@@ -120,12 +125,15 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
         if (tMax.x < tMax.y && tMax.x < tMax.z) {
             brick.x += stp.x;
             tMax.x += deltaDist.x;
+            totalDist = tMax.x;
         } else if (tMax.y < tMax.z) {
             brick.y += stp.y;
             tMax.y += deltaDist.y;
+            totalDist = tMax.y;
         } else {
             brick.z += stp.z;
             tMax.z += deltaDist.z;
+            totalDist = tMax.z;
         }
     }
     
