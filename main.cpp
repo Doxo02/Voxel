@@ -6,6 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/norm.hpp>
+#include <glm/gtc/noise.hpp>
 
 #include "GL_Abstract/Program.h"
 #include "GL_Abstract/VertexArray.h"
@@ -22,6 +23,8 @@
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
+
+#include "lib/FastNoiseLite.h"
 
 #define WIDTH 800
 #define HEIGHT 600
@@ -149,28 +152,56 @@ int main(int, char**){
 
     BrickMap brickMap(glm::ivec3(brickGridSizeX, brickGridSizeY, brickGridSizeZ));
 
-    const glm::vec3 sphereCenter = glm::vec3(40.0f, 20.0f, 40.0f);
-    const float sphereRadius = 10.5f;
-    const float radiusSquared = sphereRadius * sphereRadius;
+    // const glm::vec3 sphereCenter = glm::vec3(40.0f, 20.0f, 40.0f);
+    // const float sphereRadius = 10.5f;
+    // const float radiusSquared = sphereRadius * sphereRadius;
 
-    glm::ivec3 minVoxel = glm::floor(sphereCenter - glm::vec3(sphereRadius));
-    glm::ivec3 maxVoxel = glm::ceil(sphereCenter + glm::vec3(sphereRadius));
+    // glm::ivec3 minVoxel = glm::floor(sphereCenter - glm::vec3(sphereRadius));
+    // glm::ivec3 maxVoxel = glm::ceil(sphereCenter + glm::vec3(sphereRadius));
 
-    for (int z = minVoxel.z; z < maxVoxel.z; z++) {
-        for (int y = minVoxel.y; y < maxVoxel.y; y++) {
-            for (int x = minVoxel.x; x < maxVoxel.x; x++) {
-                glm::vec3 voxelPos = glm::vec3(x, y, z);
-                float dist2 = glm::distance2(voxelPos, sphereCenter);
+    // for (int z = minVoxel.z; z < maxVoxel.z; z++) {
+    //     for (int y = minVoxel.y; y < maxVoxel.y; y++) {
+    //         for (int x = minVoxel.x; x < maxVoxel.x; x++) {
+    //             glm::vec3 voxelPos = glm::vec3(x, y, z);
+    //             float dist2 = glm::distance2(voxelPos, sphereCenter);
 
-                if (dist2 <= radiusSquared) {
-                    brickMap.setVoxel(voxelPos, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-                }
-            }
+    //             if (dist2 <= radiusSquared) {
+    //                 brickMap.setVoxel(voxelPos, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    //             }
+    //         }
+    //     }
+    // }
+
+    // brickMap.setVoxel(glm::ivec3(0, 0, 0), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
+    // brickMap.setVoxel(glm::ivec3(7, 7, 7), glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+
+    FastNoiseLite noise;
+    noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+
+    std::vector<float> noiseData(brickGridSizeX * BRICK_SIZE * brickGridSizeZ * BRICK_SIZE);
+    int index = 0;
+
+    for (int z = 0; z < brickGridSizeZ * BRICK_SIZE; z++) {
+        for(int x = 0; x < brickGridSizeX * BRICK_SIZE; x++) {
+            noiseData[index++] = (noise.GetNoise((float) x, (float) z) + 1.0f) / 2.0f;
         }
     }
 
-    brickMap.setVoxel(glm::ivec3(0, 0, 0), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
-    brickMap.setVoxel(glm::ivec3(7, 7, 7), glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+    glm::vec4 color(0.0f, 1.0f, 0.0f, 1.0f);
+    glm::vec4 colorBelow(0.5f, 0.5f, 0.5f, 1.0f);
+
+    int voxelsZ = brickGridSizeZ * BRICK_SIZE;
+    int voxelsY = brickGridSizeY * BRICK_SIZE;
+    int voxelsX = brickGridSizeX * BRICK_SIZE;
+    for (int z = 0; z < voxelsZ; z++) {
+        for (int x = 0; x < voxelsX; x++) {
+            int yTop = (int) (noiseData[x + z * voxelsX] * (voxelsY / 4.0));
+            brickMap.setVoxel(glm::ivec3(x, yTop, z), color);
+            for (int y = 0; y < yTop; y++) {
+                brickMap.setVoxel(glm::ivec3(x, y, z), colorBelow);
+            }
+        }
+    }
 
     GPUBrickMap gpuBrickMap = brickMap.getGPUMap();
 

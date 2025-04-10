@@ -17,7 +17,6 @@ Camera::Camera(float posX, float posY, float posZ, float upX, float upY, float u
 }
 
 glm::mat4 Camera::getViewMatrix() {
-    // return glm::lookAt(glm::vec3(4.0f, 4.0f, -10.0f), glm::vec3(4.0f, 4.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     return glm::lookAt(position, position + front, up);
 }
 

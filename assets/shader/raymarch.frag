@@ -1,9 +1,11 @@
+// TODO: fix floating precission(?) issue
 #version 450
 #extension GL_ARB_gpu_shader_int64 : enable
 
+#define BRICK_SIZE 8
+
 layout(location = 0) out vec4 outColor;
 
-// Camera data
 uniform mat4 invViewProj;
 uniform vec3 cameraPos;
 uniform vec2 resolution;
@@ -11,49 +13,48 @@ uniform vec2 resolution;
 uniform uint brickSize;
 uniform vec3 gridSize;
 
-// Voxel world grid (brick index map)
-layout(binding = 0) uniform usampler3D brickMap; // brick indices
+vec3 lightDir = normalize(vec3(1.0, 1.0, 0.5)); // World-space directional light
+vec3 lightColor = vec3(1.0);                    // White light
+
+layout(binding = 0) uniform usampler3D brickMap;
 
 struct Brick {
-    uint64_t bitmask[8];
+    uint64_t bitmask[(BRICK_SIZE * BRICK_SIZE * BRICK_SIZE) / 64];
     uint colorOffset;
 };
 
-// Brick buffer (bitmask + color offset)
 layout(std430, binding = 1) buffer BrickBuffer {
     Brick bricks[];
 };
 
-// Color buffer
 layout(std430, binding = 2) buffer ColorBuffer {
     vec4 colors[];
 };
 
-const float STEP_SIZE = 0.05f; // Tune as needed
 const int MAX_STEPS = 200;
+const float MAX_DIST = 1000.0;
 
-// Util: compute linear voxel index inside a brick (0–511)
 int getVoxelIndex(ivec3 localPos) {
-    return localPos.x + localPos.y * 8 + localPos.z * 64;
+    return localPos.x + localPos.y * BRICK_SIZE + localPos.z * BRICK_SIZE * BRICK_SIZE;
 }
 
-// Util: check bitmask for voxel occupancy
 bool isVoxelSolid(uint brickIndex, int voxelIndex) {
     Brick brick = bricks[brickIndex];
     uint64_t word = brick.bitmask[voxelIndex / 64];
     return ((word >> (voxelIndex % 64)) & 1UL) != 0UL;
 }
 
-// Util: count set bits before a given voxel in bitmask (slow version)
 uint getColorIndex(uint brickIndex, int voxelIndex) {
     Brick brick = bricks[brickIndex];
     uint count = 0;
-    for (int i = 0; i < brickSize; i++) {
+    bool hitBreak = false;
+    for (int i = 0; i < BRICK_SIZE; i++) {
         if (voxelIndex / 64 - i == 0) {
-            uint64_t word = brick.bitmask[i] >> (voxelIndex % 64);
+            uint64_t word = brick.bitmask[i] << (64 - (voxelIndex % 64));
             uvec2 mask = unpackUint2x32(word);
             uvec2 tmpCount = bitCount(mask);
-            count += tmpCount.x + tmpCount.y - 1;
+            count += tmpCount.x + tmpCount.y;
+            hitBreak = true;
             break;
         }
         uint64_t word = brick.bitmask[i];
@@ -61,33 +62,72 @@ uint getColorIndex(uint brickIndex, int voxelIndex) {
         uvec2 tmpCount = bitCount(mask);
         count += tmpCount.x + tmpCount.y;
     }
+    if (!hitBreak) count--;
     return brick.colorOffset + count;
 }
 
-vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex) {
-    ro = clamp(ro, vec3(0.0001), vec3(7.9999));
+vec3 estimateNormal(ivec3 voxelPos, uint brickIndex) {
+    vec3 normal = vec3(0.0);
+    
+    for (int axis = 0; axis < 3; axis++) {
+        ivec3 offset = ivec3(0);
+        offset[axis] = 1;
+
+        int idxPos = getVoxelIndex(voxelPos + offset);
+        int idxNeg = getVoxelIndex(voxelPos - offset);
+
+        bool solidPos = (voxelPos[axis] < BRICK_SIZE - 1) && isVoxelSolid(brickIndex, idxPos);
+        bool solidNeg = (voxelPos[axis] > 0) && isVoxelSolid(brickIndex, idxNeg);
+
+        normal[axis] = float(solidNeg) - float(solidPos); // inward - outward
+    }
+
+    return normalize(normal);
+}
+
+vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex, float totalDist) {
+    ro = clamp(ro, vec3(0.0001), vec3(float(BRICK_SIZE) - 0.0001));
     ivec3 voxel = ivec3(floor(ro));
     ivec3 stp = ivec3(sign(rd));
     vec3 deltaDist = 1.0 / rd;
-    vec3 tMax = ((voxel - ro) + 0.5 + stp * 0.5) * deltaDist;
+    vec3 tMax = ((vec3(voxel) - ro) + 0.5 + vec3(stp) * 0.5) * deltaDist;
     deltaDist = abs(deltaDist);
+
+    float thisTotalDist = totalDist;
     
-    while (voxel.x <= 7.0 && voxel.x >= 0.0 && voxel.y <= 7.0 && voxel.y >= 0.0 && voxel.z <= 7.0 && voxel.z >= 0.0) {
+    while (voxel.x <= BRICK_SIZE - 1 && voxel.x >= 0 && voxel.y <= BRICK_SIZE - 1 && voxel.y >= 0 && voxel.z <= BRICK_SIZE - 1 && voxel.z >= 0) {
         int voxelIndex = getVoxelIndex(voxel);
         if (isVoxelSolid(brickIndex, voxelIndex)) {
-            // return vec4(vec3(voxel) / float(brickSize), 1.0);
-            return colors[getColorIndex(brickIndex, voxelIndex)];
+            // return vec4(vec3(voxel) / float(BRICK_SIZE), 1.0);
+            vec4 baseColor = colors[getColorIndex(brickIndex, voxelIndex)];
+            vec3 normal = estimateNormal(voxel, brickIndex);
+
+            float NdotL = max(dot(normal, lightDir), 0.0);
+            vec3 litColor = baseColor.rgb * lightColor * NdotL;
+
+            vec3 ambient = 0.15 * baseColor.rgb;
+            vec3 finalColor = ambient + litColor;
+
+            // vec3 viewDir = normalize(cameraPos - (ro + rd * thisTotalDist)); // Approximate view direction
+            // vec3 reflectDir = reflect(-lightDir, normal);
+            // float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+            // finalColor += vec3(spec);
+
+            return vec4(finalColor, baseColor.a);
         }
         
         if (tMax.x < tMax.y && tMax.x < tMax.z) {
             voxel.x += stp.x;
             tMax.x += deltaDist.x;
+            thisTotalDist = totalDist + tMax.x;
         } else if (tMax.y < tMax.z) {
             voxel.y += stp.y;
             tMax.y += deltaDist.y;
+            thisTotalDist = totalDist + tMax.y;
         } else {
             voxel.z += stp.z;
             tMax.z += deltaDist.z;
+            thisTotalDist = totalDist + tMax.z;
         }
     }
     
@@ -98,30 +138,32 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
     ivec3 brick = ivec3(floor(ro));
     ivec3 stp = ivec3(sign(rd));
     vec3 deltaDist = 1.0 / rd;
-    vec3 tMax = ((brick-ro) + 0.5 + stp * 0.5) * deltaDist;
+    vec3 tMax = ((vec3(brick) - ro) + 0.5 + vec3(stp) * 0.5) * deltaDist;
     deltaDist = abs(deltaDist);
     
     float totalDist = 0.0;
     for (int i = 0; i < MAX_STEPS; i++) {
-        if (totalDist > 25.0) break;
+        if (totalDist > (MAX_DIST / float(BRICK_SIZE))) break;
 
         uint brickIndex = texelFetch(brickMap, brick, 0).r;
 
+        if(any(lessThan(brick, ivec3(0))) || any(greaterThan(brick, gridSize))) break;
+
         if (brickIndex != 0xFFFFFFFFu) {
-            vec3 mini = ((brick - ro) + 0.5 - 0.5 * vec3(stp)) * (1.0 / rd);
+            vec3 mini = ((vec3(brick) - ro) + 0.5 - 0.5 * vec3(stp)) * (1.0 / rd);
             float d = max (mini.x, max (mini.y, mini.z));
             vec3 intersect = ro + rd * d;
-            vec3 uv3d = intersect - brick;
+            vec3 uv3d = intersect - vec3(brick);
 
             if (brick == floor(ro)) // Handle edge case where camera origin is inside of block
-                uv3d = ro - brick;
+                uv3d = ro - vec3(brick);
 
-            vec4 hit = traceBrick(uv3d * float(brickSize), rd, brickIndex);
+            vec4 hit = traceBrick(uv3d * float(BRICK_SIZE), rd, brickIndex, totalDist);
 
             if (hit.a > 0.95) 
                     return hit;
         }
-       
+
         if (tMax.x < tMax.y && tMax.x < tMax.z) {
             brick.x += stp.x;
             tMax.x += deltaDist.x;
@@ -140,7 +182,6 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
     return vec4(0.0);
 }
 
-// Entry point
 void main() {
     vec2 uv = gl_FragCoord.xy / resolution;
     vec2 ndc = uv * 2.0 - 1.0;
