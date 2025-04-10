@@ -59,6 +59,21 @@ bool isVoxelSolid(uint brickIndex, int voxelIndex) {
     return ((word >> (voxelIndex % 64)) & 1UL) != 0UL;
 }
 
+bool isVoxelSolidGlobal(ivec3 globalVoxelPos) {
+    if(any(lessThan(globalVoxelPos, ivec3(0))) || any(greaterThan(globalVoxelPos, gridSize * BRICK_SIZE)))
+        return false;
+    
+    ivec3 brickCoord = globalVoxelPos / BRICK_SIZE;
+    ivec3 localPos   = globalVoxelPos % BRICK_SIZE;
+
+    uint brickIndex = texelFetch(brickMap, brickCoord, 0).r;
+    if (brickIndex == 0xFFFFFFFFu)
+        return false;
+    
+    int voxelIndex = getVoxelIndex(localPos);
+    return isVoxelSolid(brickIndex, voxelIndex);
+}
+
 uint getColorIndex(uint brickIndex, int voxelIndex) {
     Brick brick = bricks[brickIndex];
     uint count = 0;
@@ -81,18 +96,15 @@ uint getColorIndex(uint brickIndex, int voxelIndex) {
     return brick.colorOffset + count;
 }
 
-vec3 estimateNormal(ivec3 voxelPos, uint brickIndex) {
+vec3 estimateNormal(ivec3 voxelPos) {
     vec3 normal = vec3(0.0);
     
     for (int axis = 0; axis < 3; axis++) {
         ivec3 offset = ivec3(0);
         offset[axis] = 1;
 
-        int idxPos = getVoxelIndex(voxelPos + offset);
-        int idxNeg = getVoxelIndex(voxelPos - offset);
-
-        bool solidPos = (voxelPos[axis] < BRICK_SIZE - 1) && isVoxelSolid(brickIndex, idxPos);
-        bool solidNeg = (voxelPos[axis] > 0) && isVoxelSolid(brickIndex, idxNeg);
+        bool solidPos = isVoxelSolidGlobal(voxelPos + offset);
+        bool solidNeg = isVoxelSolidGlobal(voxelPos - offset);
 
         normal[axis] = float(solidNeg) - float(solidPos); // inward - outward
     }
@@ -100,7 +112,7 @@ vec3 estimateNormal(ivec3 voxelPos, uint brickIndex) {
     return normalize(normal);
 }
 
-vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex, float totalDist) {
+vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex, float totalDist, ivec3 brickPos) {
     ro = clamp(ro, vec3(0.0001), vec3(float(BRICK_SIZE) - 0.0001));
     ivec3 voxel = ivec3(floor(ro));
     ivec3 stp = ivec3(sign(rd));
@@ -115,7 +127,9 @@ vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex, float totalDist) {
         if (isVoxelSolid(brickIndex, voxelIndex)) {
             // return vec4(vec3(voxel) / float(BRICK_SIZE), 1.0);
             vec4 baseColor = colors[getColorIndex(brickIndex, voxelIndex)];
-            vec3 normal = estimateNormal(voxel, brickIndex);
+            vec3 normal = estimateNormal(voxel + brickPos * BRICK_SIZE);
+
+            // return vec4(normal, 1.0);
 
             float NdotL = max(dot(normal, lightDir), 0.0);
             vec3 litColor = baseColor.rgb * lightColor * NdotL;
@@ -180,7 +194,7 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
             if (brick == floor(ro)) // Handle edge case where camera origin is inside of block
                 uv3d = ro - vec3(brick);
 
-            vec4 hit = traceBrick(uv3d * float(BRICK_SIZE), rd, brickIndex, totalDist);
+            vec4 hit = traceBrick(uv3d * float(BRICK_SIZE), rd, brickIndex, totalDist, brick);
 
             if (hit.a > 0.95) 
                     return hit;
