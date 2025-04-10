@@ -16,6 +16,8 @@ uniform vec3 gridSize;
 vec3 lightDir = normalize(vec3(1.0, 1.0, 0.5)); // World-space directional light
 vec3 lightColor = vec3(1.0);                    // White light
 
+vec4 background = vec4(0.1, 0.1, 0.8, 1.0);
+
 layout(binding = 0) uniform usampler3D brickMap;
 
 struct Brick {
@@ -33,6 +35,19 @@ layout(std430, binding = 2) buffer ColorBuffer {
 
 const int MAX_STEPS = 200;
 const float MAX_DIST = 1000.0;
+
+bool intersectAABB(vec3 ro, vec3 rd, vec3 boxMin, vec3 boxMax, out float tEnter, out float tExit) {
+    vec3 tMin = (boxMin - ro) / rd;
+    vec3 tMax = (boxMax - ro) / rd;
+
+    vec3 t1 = min(tMin, tMax);
+    vec3 t2 = max(tMin, tMax);
+
+    tEnter = max(max(t1.x, t1.y), t1.z);
+    tExit  = min(min(t2.x, t2.y), t2.z);
+
+    return tExit >= max(tEnter, 0.0); // ray hits box and tExit is ahead of start
+}
 
 int getVoxelIndex(ivec3 localPos) {
     return localPos.x + localPos.y * BRICK_SIZE + localPos.z * BRICK_SIZE * BRICK_SIZE;
@@ -135,7 +150,14 @@ vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex, float totalDist) {
 }
 
 vec4 traceWorld(vec3 ro, vec3 rd) {    
-    ivec3 brick = ivec3(floor(ro));
+    float tEnter, tExit;
+    if (!intersectAABB(ro, rd, vec3(0.0), gridSize, tEnter, tExit)) {
+        return background;
+    }
+
+    ro = ro + rd * max(tEnter, 0.0);
+
+    ivec3 brick = ivec3(floor(ro + 1e-4));
     ivec3 stp = ivec3(sign(rd));
     vec3 deltaDist = 1.0 / rd;
     vec3 tMax = ((vec3(brick) - ro) + 0.5 + vec3(stp) * 0.5) * deltaDist;
@@ -151,7 +173,7 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
 
         if (brickIndex != 0xFFFFFFFFu) {
             vec3 mini = ((vec3(brick) - ro) + 0.5 - 0.5 * vec3(stp)) * (1.0 / rd);
-            float d = max (mini.x, max (mini.y, mini.z));
+            float d = max(mini.x, max(mini.y, mini.z));
             vec3 intersect = ro + rd * d;
             vec3 uv3d = intersect - vec3(brick);
 
@@ -179,7 +201,7 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
         }
     }
     
-    return vec4(0.0);
+    return background;
 }
 
 void main() {
