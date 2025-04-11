@@ -11,18 +11,20 @@ uniform vec3 cameraPos;
 uniform vec2 resolution;
 
 uniform uint brickSize;
-uniform vec3 gridSize;
+uniform ivec3 gridSize;
 
 vec3 lightDir = normalize(vec3(1.0, 1.0, 0.5)); // World-space directional light
 vec3 lightColor = vec3(1.0);                    // White light
 
 vec4 background = vec4(0.1, 0.1, 0.8, 1.0);
 
-layout(binding = 0) uniform usampler3D brickMap;
-
 struct Brick {
     uint64_t bitmask[(BRICK_SIZE * BRICK_SIZE * BRICK_SIZE) / 64];
     uint colorOffset;
+};
+
+layout(std430, binding = 0) buffer BrickMapBuffer {
+    uint brickMap[];
 };
 
 layout(std430, binding = 1) buffer BrickBuffer {
@@ -59,6 +61,10 @@ bool isVoxelSolid(uint brickIndex, int voxelIndex) {
     return ((word >> (voxelIndex % 64)) & 1UL) != 0UL;
 }
 
+uint getBrickIndex(ivec3 brickPos) {
+    return brickMap[brickPos.x + brickPos.y * gridSize.x + brickPos.z * gridSize.x * gridSize.y];
+}
+
 bool isVoxelSolidGlobal(ivec3 globalVoxelPos) {
     if(any(lessThan(globalVoxelPos, ivec3(0))) || any(greaterThan(globalVoxelPos, gridSize * BRICK_SIZE)))
         return false;
@@ -66,7 +72,7 @@ bool isVoxelSolidGlobal(ivec3 globalVoxelPos) {
     ivec3 brickCoord = globalVoxelPos / BRICK_SIZE;
     ivec3 localPos   = globalVoxelPos % BRICK_SIZE;
 
-    uint brickIndex = texelFetch(brickMap, brickCoord, 0).r;
+    uint brickIndex = getBrickIndex(brickCoord);
     if (brickIndex == 0xFFFFFFFFu)
         return false;
     
@@ -77,14 +83,12 @@ bool isVoxelSolidGlobal(ivec3 globalVoxelPos) {
 uint getColorIndex(uint brickIndex, int voxelIndex) {
     Brick brick = bricks[brickIndex];
     uint count = 0;
-    bool hitBreak = false;
     for (int i = 0; i < BRICK_SIZE; i++) {
         if (voxelIndex / 64 - i == 0) {
             uint64_t word = brick.bitmask[i] << (64 - (voxelIndex % 64));
             uvec2 mask = unpackUint2x32(word);
             uvec2 tmpCount = bitCount(mask);
             count += tmpCount.x + tmpCount.y;
-            hitBreak = true;
             break;
         }
         uint64_t word = brick.bitmask[i];
@@ -92,7 +96,6 @@ uint getColorIndex(uint brickIndex, int voxelIndex) {
         uvec2 tmpCount = bitCount(mask);
         count += tmpCount.x + tmpCount.y;
     }
-    if (!hitBreak) count--;
     return brick.colorOffset + count;
 }
 
@@ -165,7 +168,7 @@ vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex, float totalDist, ivec3 brickP
 
 vec4 traceWorld(vec3 ro, vec3 rd) {    
     float tEnter, tExit;
-    if (!intersectAABB(ro, rd, vec3(0.0), gridSize, tEnter, tExit)) {
+    if (!intersectAABB(ro, rd, vec3(0.0), vec3(gridSize), tEnter, tExit)) {
         return background;
     }
 
@@ -181,9 +184,9 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
     for (int i = 0; i < MAX_STEPS; i++) {
         if (totalDist > (MAX_DIST / float(BRICK_SIZE))) break;
 
-        uint brickIndex = texelFetch(brickMap, brick, 0).r;
+        uint brickIndex = getBrickIndex(brick);
 
-        if(any(lessThan(brick, ivec3(0))) || any(greaterThan(brick, gridSize))) break;
+        if ((any(lessThan(brick, ivec3(0))) || any(greaterThan(brick, gridSize)))) break;
 
         if (brickIndex != 0xFFFFFFFFu) {
             vec3 mini = ((vec3(brick) - ro) + 0.5 - 0.5 * vec3(stp)) * (1.0 / rd);

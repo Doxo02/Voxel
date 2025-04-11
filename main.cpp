@@ -35,7 +35,7 @@ const int brickGridSizeZ = 64;
 
 const int totalBrickCells = brickGridSizeX * brickGridSizeY * brickGridSizeZ;
 
-Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
+Camera camera(glm::vec3(50.0f, 100.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
 glm::mat4 projection;
 
 bool viewportResized = false;
@@ -152,29 +152,6 @@ int main(int, char**){
 
     BrickMap brickMap(glm::ivec3(brickGridSizeX, brickGridSizeY, brickGridSizeZ));
 
-    // const glm::vec3 sphereCenter = glm::vec3(40.0f, 20.0f, 40.0f);
-    // const float sphereRadius = 10.5f;
-    // const float radiusSquared = sphereRadius * sphereRadius;
-
-    // glm::ivec3 minVoxel = glm::floor(sphereCenter - glm::vec3(sphereRadius));
-    // glm::ivec3 maxVoxel = glm::ceil(sphereCenter + glm::vec3(sphereRadius));
-
-    // for (int z = minVoxel.z; z < maxVoxel.z; z++) {
-    //     for (int y = minVoxel.y; y < maxVoxel.y; y++) {
-    //         for (int x = minVoxel.x; x < maxVoxel.x; x++) {
-    //             glm::vec3 voxelPos = glm::vec3(x, y, z);
-    //             float dist2 = glm::distance2(voxelPos, sphereCenter);
-
-    //             if (dist2 <= radiusSquared) {
-    //                 brickMap.setVoxel(voxelPos, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-    //             }
-    //         }
-    //     }
-    // }
-
-    // brickMap.setVoxel(glm::ivec3(0, 0, 0), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
-    // brickMap.setVoxel(glm::ivec3(7, 7, 7), glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
-
     FastNoiseLite noise;
     noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
 
@@ -205,21 +182,11 @@ int main(int, char**){
 
     GPUBrickMap gpuBrickMap = brickMap.getGPUMap();
 
-    GLuint brickMapTex;
-    glGenTextures(1, &brickMapTex);
-    glBindTexture(GL_TEXTURE_3D, brickMapTex);
-
-    glTexStorage3D(GL_TEXTURE_3D, 1, GL_R32UI, brickGridSizeX, brickGridSizeY, brickGridSizeZ);
-    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0,
-                    brickGridSizeX, brickGridSizeY, brickGridSizeZ,
-                    GL_RED_INTEGER, GL_UNSIGNED_INT, gpuBrickMap.indexData.data());
-
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    program.setUniform1i("brickMap", 0);
+    GLuint brickMapSSBO;
+    glGenBuffers(1, &brickMapSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, brickMapSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gpuBrickMap.indexData.size() * sizeof(uint32_t), gpuBrickMap.indexData.data(), GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, brickMapSSBO);
 
     GLuint brickSSBO;
     glGenBuffers(1, &brickSSBO);
@@ -235,11 +202,11 @@ int main(int, char**){
 
     glm::mat4 invVP = glm::inverse(projection * camera.getViewMatrix());
     program.setUniformMat4f("invViewProj", glm::value_ptr(invVP));
-    program.setUniform3f("cameraPos", camera.position.x, camera.position.y, camera.position.z);
+    program.setUniform3f("cameraPos", camera.position);
     program.setUniform2f("resolution", WIDTH, HEIGHT);
 
     program.setUniform1ui("brickSize", BRICK_SIZE);
-    program.setUniform3f("gridSize", brickGridSizeX, brickGridSizeY, brickGridSizeZ);
+    program.setUniform3i("gridSize", glm::ivec3(brickGridSizeX, brickGridSizeY, brickGridSizeZ));
 
     GLuint dummyVAO;
     glGenVertexArrays(1, &dummyVAO);
@@ -266,7 +233,7 @@ int main(int, char**){
 
         glm::mat4 invVP = glm::inverse(projection * camera.getViewMatrix());
         program.setUniformMat4f("invViewProj", glm::value_ptr(invVP));
-        program.setUniform3f("cameraPos", camera.position.x, camera.position.y, camera.position.z);
+        program.setUniform3f("cameraPos", camera.position);
 
         processInput(window);
 
@@ -274,9 +241,7 @@ int main(int, char**){
 
         program.bind();
         glBindVertexArray(dummyVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_3D, brickMapTex);
-        program.setUniform1i("brickMap", 0);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, brickMapSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, brickSSBO);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, colorSSBO);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -293,6 +258,7 @@ int main(int, char**){
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
+    glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
 }
