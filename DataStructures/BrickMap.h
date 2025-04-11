@@ -7,7 +7,7 @@
 #include <array>
 
 #define BRICK_SIZE 8
-#define VOXELS_PER_BRICK 512
+#define VOXELS_PER_BRICK (BRICK_SIZE * BRICK_SIZE * BRICK_SIZE)
 
 struct Voxel {
     glm::vec4 color = glm::vec4(0);
@@ -19,7 +19,7 @@ struct Brick {
 };
 
 struct GPUBrick {
-    uint64_t bitmask[8];
+    uint64_t bitmask[VOXELS_PER_BRICK / 64];
     uint32_t colorOffset;
 };
 

@@ -87,6 +87,10 @@ void Program::setUniform1i(const std::string& name, int value) {
     glUniform1i(glGetUniformLocation(m_id, name.c_str()), value);
 }
 
+void Program::setUniform3i(const std::string &name, glm::ivec3 value) {
+    glUniform3i(glGetUniformLocation(m_id, name.c_str()), value.x, value.y, value.z);
+}
+
 void Program::setUniform1ui(const std::string& name, unsigned int value) {
     glUniform1ui(glGetUniformLocation(m_id, name.c_str()), value);
 }
@@ -101,6 +105,10 @@ void Program::setUniform2f(const std::string& name, float v0, float v1) {
 
 void Program::setUniform3f(const std::string& name, float v0, float v1, float v2) {
     glUniform3f(glGetUniformLocation(m_id, name.c_str()), v0, v1, v2);
+}
+
+void Program::setUniform3f(const std::string &name, glm::vec3 value) {
+    setUniform3f(name, value.x, value.y, value.z);
 }
 
 void Program::setUniform4f(const std::string& name, float v0, float v1, float v2, float v3) {

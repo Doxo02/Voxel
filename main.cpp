@@ -6,11 +6,13 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/norm.hpp>
+#include <glm/gtc/noise.hpp>
 
 #include "GL_Abstract/Program.h"
 #include "GL_Abstract/VertexArray.h"
 #include "GL_Abstract/VertexBuffer.h"
 #include "GL_Abstract/ElementBuffer.h"
+#include "GL_Abstract/ShaderStorageBuffer.h"
 
 #include "Rendering/Camera.h"
 
@@ -19,9 +21,13 @@
 #include <fstream>
 #include <iostream>
 
+#include "platform/rss.h"
+
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
+
+#include "lib/FastNoiseLite.h"
 
 #define WIDTH 800
 #define HEIGHT 600
@@ -32,7 +38,7 @@ const int brickGridSizeZ = 64;
 
 const int totalBrickCells = brickGridSizeX * brickGridSizeY * brickGridSizeZ;
 
-Camera camera(glm::vec3(0.0f, 0.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
+Camera camera(glm::vec3(50.0f, 20.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
 glm::mat4 projection;
 
 bool viewportResized = false;
@@ -149,66 +155,47 @@ int main(int, char**){
 
     BrickMap brickMap(glm::ivec3(brickGridSizeX, brickGridSizeY, brickGridSizeZ));
 
-    const glm::vec3 sphereCenter = glm::vec3(40.0f, 20.0f, 40.0f);
-    const float sphereRadius = 10.5f;
-    const float radiusSquared = sphereRadius * sphereRadius;
+    FastNoiseLite noise;
+    noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
 
-    glm::ivec3 minVoxel = glm::floor(sphereCenter - glm::vec3(sphereRadius));
-    glm::ivec3 maxVoxel = glm::ceil(sphereCenter + glm::vec3(sphereRadius));
+    std::vector<float> noiseData(brickGridSizeX * BRICK_SIZE * brickGridSizeZ * BRICK_SIZE);
+    int index = 0;
 
-    for (int z = minVoxel.z; z < maxVoxel.z; z++) {
-        for (int y = minVoxel.y; y < maxVoxel.y; y++) {
-            for (int x = minVoxel.x; x < maxVoxel.x; x++) {
-                glm::vec3 voxelPos = glm::vec3(x, y, z);
-                float dist2 = glm::distance2(voxelPos, sphereCenter);
+    for (int z = 0; z < brickGridSizeZ * BRICK_SIZE; z++) {
+        for(int x = 0; x < brickGridSizeX * BRICK_SIZE; x++) {
+            noiseData[index++] = (noise.GetNoise((float) x, (float) z) + 1.0f) / 2.0f;
+        }
+    }
 
-                if (dist2 <= radiusSquared) {
-                    brickMap.setVoxel(voxelPos, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-                }
+    glm::vec4 color(0.0f, 1.0f, 0.0f, 1.0f);
+    glm::vec4 colorBelow(0.5f, 0.5f, 0.5f, 1.0f);
+
+    int voxelsZ = brickGridSizeZ * BRICK_SIZE;
+    int voxelsY = brickGridSizeY * BRICK_SIZE;
+    int voxelsX = brickGridSizeX * BRICK_SIZE;
+    for (int z = 0; z < voxelsZ; z++) {
+        for (int x = 0; x < voxelsX; x++) {
+            int yTop = (int) (noiseData[x + z * voxelsX] * (voxelsY / 4.0));
+            brickMap.setVoxel(glm::ivec3(x, yTop, z), color);
+            for (int y = 0; y < yTop; y++) {
+                brickMap.setVoxel(glm::ivec3(x, y, z), colorBelow);
             }
         }
     }
 
-    brickMap.setVoxel(glm::ivec3(0, 0, 0), glm::vec4(1.0f, 1.0f, 0.0f, 1.0f));
-    brickMap.setVoxel(glm::ivec3(7, 7, 7), glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
-
     GPUBrickMap gpuBrickMap = brickMap.getGPUMap();
 
-    GLuint brickMapTex;
-    glGenTextures(1, &brickMapTex);
-    glBindTexture(GL_TEXTURE_3D, brickMapTex);
-
-    glTexStorage3D(GL_TEXTURE_3D, 1, GL_R32UI, brickGridSizeX, brickGridSizeY, brickGridSizeZ);
-    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0,
-                    brickGridSizeX, brickGridSizeY, brickGridSizeZ,
-                    GL_RED_INTEGER, GL_UNSIGNED_INT, gpuBrickMap.indexData.data());
-
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    program.setUniform1i("brickMap", 0);
-
-    GLuint brickSSBO;
-    glGenBuffers(1, &brickSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, brickSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gpuBrickMap.bricks.size() * sizeof(GPUBrick), gpuBrickMap.bricks.data(), GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, brickSSBO);
-
-    GLuint colorSSBO;
-    glGenBuffers(1, &colorSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, colorSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gpuBrickMap.colors.size() * sizeof(glm::vec4), gpuBrickMap.colors.data(), GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, colorSSBO);
+    gla::ShaderStorageBuffer brickMapSSBO(gpuBrickMap.indexData.data(), gpuBrickMap.indexData.size() * sizeof(uint32_t), 0);
+    gla::ShaderStorageBuffer brickSSBO(gpuBrickMap.bricks.data(), gpuBrickMap.bricks.size() * sizeof(GPUBrick), 1);
+    gla::ShaderStorageBuffer colorSSBO(gpuBrickMap.colors.data(), gpuBrickMap.colors.size() * sizeof(glm::vec4), 2);
 
     glm::mat4 invVP = glm::inverse(projection * camera.getViewMatrix());
     program.setUniformMat4f("invViewProj", glm::value_ptr(invVP));
-    program.setUniform3f("cameraPos", camera.position.x, camera.position.y, camera.position.z);
+    program.setUniform3f("cameraPos", camera.position);
     program.setUniform2f("resolution", WIDTH, HEIGHT);
 
     program.setUniform1ui("brickSize", BRICK_SIZE);
-    program.setUniform3f("gridSize", brickGridSizeX, brickGridSizeY, brickGridSizeZ);
+    program.setUniform3i("gridSize", glm::ivec3(brickGridSizeX, brickGridSizeY, brickGridSizeZ));
 
     GLuint dummyVAO;
     glGenVertexArrays(1, &dummyVAO);
@@ -225,6 +212,8 @@ int main(int, char**){
         ImGui::Begin("Debug Info");
         ImGui::Text("%.4f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
         ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
+        ImGui::Text("Camere pos: (%.2f, %.2f, %.2f)", camera.position.x, camera.position.y, camera.position.z);
+        ImGui::Text("Memory (MiB): %.4f", (float) getCurrentRSS() / (1024.0 * 1024.0));
         ImGui::End();
 
         if (viewportResized) {
@@ -234,7 +223,7 @@ int main(int, char**){
 
         glm::mat4 invVP = glm::inverse(projection * camera.getViewMatrix());
         program.setUniformMat4f("invViewProj", glm::value_ptr(invVP));
-        program.setUniform3f("cameraPos", camera.position.x, camera.position.y, camera.position.z);
+        program.setUniform3f("cameraPos", camera.position);
 
         processInput(window);
 
@@ -242,11 +231,9 @@ int main(int, char**){
 
         program.bind();
         glBindVertexArray(dummyVAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_3D, brickMapTex);
-        program.setUniform1i("brickMap", 0);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, brickSSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, colorSSBO);
+        brickMapSSBO.bindBase();
+        brickSSBO.bindBase();
+        colorSSBO.bindBase();
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
         ImGui::Render();
@@ -261,6 +248,7 @@ int main(int, char**){
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
+    glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
 }
