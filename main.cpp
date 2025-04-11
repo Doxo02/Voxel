@@ -12,6 +12,7 @@
 #include "GL_Abstract/VertexArray.h"
 #include "GL_Abstract/VertexBuffer.h"
 #include "GL_Abstract/ElementBuffer.h"
+#include "GL_Abstract/ShaderStorageBuffer.h"
 
 #include "Rendering/Camera.h"
 
@@ -184,23 +185,9 @@ int main(int, char**){
 
     GPUBrickMap gpuBrickMap = brickMap.getGPUMap();
 
-    GLuint brickMapSSBO;
-    glGenBuffers(1, &brickMapSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, brickMapSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gpuBrickMap.indexData.size() * sizeof(uint32_t), gpuBrickMap.indexData.data(), GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, brickMapSSBO);
-
-    GLuint brickSSBO;
-    glGenBuffers(1, &brickSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, brickSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gpuBrickMap.bricks.size() * sizeof(GPUBrick), gpuBrickMap.bricks.data(), GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, brickSSBO);
-
-    GLuint colorSSBO;
-    glGenBuffers(1, &colorSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, colorSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gpuBrickMap.colors.size() * sizeof(glm::vec4), gpuBrickMap.colors.data(), GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, colorSSBO);
+    gla::ShaderStorageBuffer brickMapSSBO(gpuBrickMap.indexData.data(), gpuBrickMap.indexData.size() * sizeof(uint32_t), 0);
+    gla::ShaderStorageBuffer brickSSBO(gpuBrickMap.bricks.data(), gpuBrickMap.bricks.size() * sizeof(GPUBrick), 1);
+    gla::ShaderStorageBuffer colorSSBO(gpuBrickMap.colors.data(), gpuBrickMap.colors.size() * sizeof(glm::vec4), 2);
 
     glm::mat4 invVP = glm::inverse(projection * camera.getViewMatrix());
     program.setUniformMat4f("invViewProj", glm::value_ptr(invVP));
@@ -244,9 +231,9 @@ int main(int, char**){
 
         program.bind();
         glBindVertexArray(dummyVAO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, brickMapSSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, brickSSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, colorSSBO);
+        brickMapSSBO.bindBase();
+        brickSSBO.bindBase();
+        colorSSBO.bindBase();
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
         ImGui::Render();
