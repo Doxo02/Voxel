@@ -62,6 +62,8 @@ bool isVoxelSolid(uint brickIndex, int voxelIndex) {
 }
 
 uint getBrickIndex(ivec3 brickPos) {
+    if (any(lessThan(brickPos, ivec3(0))) || any(greaterThanEqual(brickPos, gridSize)))
+        return 0xFFFFFFFFu;
     return brickMap[brickPos.x + brickPos.y * gridSize.x + brickPos.z * gridSize.x * gridSize.y];
 }
 

@@ -20,6 +20,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "platform/rss.h"
+
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -35,7 +37,7 @@ const int brickGridSizeZ = 64;
 
 const int totalBrickCells = brickGridSizeX * brickGridSizeY * brickGridSizeZ;
 
-Camera camera(glm::vec3(50.0f, 100.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
+Camera camera(glm::vec3(50.0f, 20.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
 glm::mat4 projection;
 
 bool viewportResized = false;
@@ -224,6 +226,7 @@ int main(int, char**){
         ImGui::Text("%.4f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
         ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
         ImGui::Text("Camere pos: (%.2f, %.2f, %.2f)", camera.position.x, camera.position.y, camera.position.z);
+        ImGui::Text("Memory (MiB): %.4f", (float) getCurrentRSS() / (1024.0 * 1024.0));
         ImGui::End();
 
         if (viewportResized) {
