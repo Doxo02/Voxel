@@ -8,7 +8,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "platform/rss.h"
-#include "lib/FastNoiseLite.h"
+#include <FastNoiseLite.h>
 
 App::App(int width, int height, const char* title)
     : m_width(width), m_height(height), m_title(title) {}
@@ -80,6 +80,7 @@ bool App::init() {
     // TODO: abstract World Gen to different class
     ///////////////////////////////////////////////////
 
+    spdlog::info("Starting to generate terrain...");
     FastNoiseLite noise;
     noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
 
@@ -107,6 +108,8 @@ bool App::init() {
             }
         }
     }
+
+    spdlog::info("Finished terrain generation.");
 
     GPUBrickMap gpuBrickMap = m_brickMap->getGPUMap();
 

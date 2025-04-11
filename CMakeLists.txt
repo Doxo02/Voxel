@@ -30,15 +30,16 @@ add_library(imgui
 )
 target_include_directories(imgui PUBLIC ${imgui_external_SOURCE_DIR})
 
-add_executable(Voxel main.cpp
-    GL_Abstract/Program.cpp
-    GL_Abstract/VertexArray.cpp
-    GL_Abstract/VertexBuffer.cpp
-    GL_Abstract/ElementBuffer.cpp
-    GL_Abstract/ShaderStorageBuffer.cpp
-    App.cpp
-    Rendering/Camera.cpp)
+add_executable(Voxel 
+    src/main.cpp
+    src/GL_Abstract/Program.cpp
+    src/GL_Abstract/VertexArray.cpp
+    src/GL_Abstract/VertexBuffer.cpp
+    src/GL_Abstract/ElementBuffer.cpp
+    src/GL_Abstract/ShaderStorageBuffer.cpp
+    src/App.cpp
+    src/Rendering/Camera.cpp)
 
-target_include_directories(Voxel PUBLIC ${imgui_external_SOURCE_DIR})
+target_include_directories(Voxel PUBLIC ${imgui_external_SOURCE_DIR} lib)
 
 target_link_libraries(Voxel PRIVATE GLEW::GLEW glfw glm OpenGL::GL imgui spdlog::spdlog)
