@@ -1,9 +1,12 @@
 #include "Program.h"
 
 #include <iostream>
+#include <fstream>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <GL/glew.h>
+
+#include <spdlog/spdlog.h>
 
 namespace gla {
 
@@ -14,38 +17,49 @@ void checkCompileErrors(GLuint shader, std::string type) {
         glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
         if (!success) {
             glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-            std::cerr << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+            spdlog::error("Failed to compile {0} shader:\n\t{1}", type, infoLog);    
         }
     } else {
         glGetProgramiv(shader, GL_LINK_STATUS, &success);
         if (!success) {
             glGetProgramInfoLog(shader, 1024, NULL, infoLog);
-            std::cerr << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
+            spdlog::error("Failed to link Program:\n\t{0}", infoLog);
         }
     }
 }
 
-Program::Program(const std::string& vertexSource, const std::string& fragmentSource) {
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    const char* vertexCode = vertexSource.c_str();
-    glShaderSource(vertexShader, 1, &vertexCode, NULL);
-    glCompileShader(vertexShader);
-    checkCompileErrors(vertexShader, "VERTEX");
+Program::Program(const std::string& vertexShader, const std::string& fragmentShader, bool isPath) {
+    std::string vertexSource, fragmentSource;
+    if (isPath) {
+        std::ifstream vertexFile(vertexShader);
+        vertexSource = std::string((std::istreambuf_iterator<char>(vertexFile)), std::istreambuf_iterator<char>());
+        std::ifstream fragmentFile(fragmentShader);
+        fragmentSource = std::string((std::istreambuf_iterator<char>(fragmentFile)), std::istreambuf_iterator<char>());
+    } else {
+        vertexSource = vertexShader;
+        fragmentSource = fragmentShader;
+    }
 
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    GLuint vertexId = glCreateShader(GL_VERTEX_SHADER);
+    const char* vertexCode = vertexSource.c_str();
+    glShaderSource(vertexId, 1, &vertexCode, NULL);
+    glCompileShader(vertexId);
+    checkCompileErrors(vertexId, "VERTEX");
+
+    GLuint fragmentId = glCreateShader(GL_FRAGMENT_SHADER);
     const char* fragmentCode = fragmentSource.c_str();
-    glShaderSource(fragmentShader, 1, &fragmentCode, NULL);
-    glCompileShader(fragmentShader);
-    checkCompileErrors(fragmentShader, "FRAGMENT");
+    glShaderSource(fragmentId, 1, &fragmentCode, NULL);
+    glCompileShader(fragmentId);
+    checkCompileErrors(fragmentId, "FRAGMENT");
 
     m_id = glCreateProgram();
-    glAttachShader(m_id, vertexShader);
-    glAttachShader(m_id, fragmentShader);
+    glAttachShader(m_id, vertexId);
+    glAttachShader(m_id, fragmentId);
     glLinkProgram(m_id);
     checkCompileErrors(m_id, "PROGRAM");
 
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    glDeleteShader(vertexId);
+    glDeleteShader(fragmentId);
 }
 
 Program::~Program() {
@@ -65,20 +79,6 @@ unsigned int Program::compileShader(unsigned int type, const std::string& source
     const char* src = source.c_str();
     glShaderSource(id, 1, &src, nullptr);
     glCompileShader(id);
-
-    int result;
-    glGetShaderiv(id, GL_COMPILE_STATUS, &result);
-    if(result == GL_FALSE) {
-        int length;
-        glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
-        char* message = (char*)alloca(length * sizeof(char));
-        glGetShaderInfoLog(id, length, &length, message);
-        // TODO: Log this
-        std::cout << "Failed to compile " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") << " shader!" << std::endl;
-        std::cout << message << std::endl;
-        glDeleteShader(id);
-        return 0;
-    }
 
     return id;
 }

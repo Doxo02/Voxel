@@ -9,7 +9,7 @@ namespace gla {
     
     class Program {
     public:
-        Program(const std::string& vertexShader, const std::string& fragmentShader);
+        Program(const std::string& vertexShader, const std::string& fragmentShader, bool isPath = false);
         ~Program();
 
         void bind();
