@@ -47,8 +47,9 @@ make
 
 ---
 
-## Roadmap
+## TODO
 
+- [ ] Refactoring
 - [ ] Material support
 - [ ] Lighting system (directional, ambient)
 - [ ] Multithreaded chunk generation
