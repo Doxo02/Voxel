@@ -1,4 +1,3 @@
-// TODO: fix floating precission(?) issue
 #version 450
 #extension GL_ARB_gpu_shader_int64 : enable
 
@@ -36,7 +35,7 @@ layout(std430, binding = 2) buffer ColorBuffer {
 };
 
 const int MAX_STEPS = 200;
-const float MAX_DIST = 1000.0;
+const float MAX_DIST = 250.0;
 
 bool intersectAABB(vec3 ro, vec3 rd, vec3 boxMin, vec3 boxMax, out float tEnter, out float tExit) {
     vec3 tMin = (boxMin - ro) / rd;
@@ -184,8 +183,6 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
     
     float totalDist = 0.0;
     for (int i = 0; i < MAX_STEPS; i++) {
-        if (totalDist > (MAX_DIST / float(BRICK_SIZE))) break;
-
         uint brickIndex = getBrickIndex(brick);
 
         if ((any(lessThan(brick, ivec3(0))) || any(greaterThan(brick, gridSize)))) break;

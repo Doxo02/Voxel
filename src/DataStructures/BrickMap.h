@@ -9,6 +9,7 @@
 #define BRICK_SIZE 8
 #define VOXELS_PER_BRICK (BRICK_SIZE * BRICK_SIZE * BRICK_SIZE)
 
+/// @brief Individual Voxel struct for every Voxel for easy editing on the CPU. (might change to save storage space)
 struct Voxel {
     glm::vec4 color = glm::vec4(0);
 };
@@ -18,11 +19,13 @@ struct Brick {
     glm::ivec3 pos;
 };
 
+/// @brief The brick in the format that is sent to the GPU.
 struct GPUBrick {
     uint64_t bitmask[VOXELS_PER_BRICK / 64];
     uint32_t colorOffset;
 };
 
+/// @brief holds all the voxel data that is sent to the GPU.
 struct GPUBrickMap {
     std::vector<GPUBrick> bricks;
     std::vector<uint32_t> indexData;
@@ -111,6 +114,12 @@ public:
         }
 
         return ret;
+    }
+
+    int getSizeInBytes() {
+        int brickSize = bricks.size() * sizeof(Brick);
+        int indexSize = indexTable.size() * (sizeof(glm::ivec3) + sizeof(int));
+        return brickSize + indexSize + sizeof(BrickMap);
     }
 };
 
