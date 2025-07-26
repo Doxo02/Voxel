@@ -7,6 +7,7 @@
 
 namespace gla {
     
+    /// @brief Abstracts a Shader Program of a vertexShader and fragmentShader into a class.
     class Program {
     public:
         Program(const std::string& vertexShader, const std::string& fragmentShader, bool isPath = false);

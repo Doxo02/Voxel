@@ -35,7 +35,7 @@ bool App::init() {
     spdlog::info("Created window.");
 
     glfwMakeContextCurrent(m_window);
-    glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED );
 
     glfwSetWindowUserPointer(m_window, this);
 
@@ -109,7 +109,7 @@ bool App::init() {
         }
     }
 
-    spdlog::info("Finished terrain generation.");
+    spdlog::info("Finished terrain generation. (size: {:.2f} MiB)", m_brickMap->getSizeInBytes() / 1024.0 / 1024.0);
 
     GPUBrickMap gpuBrickMap = m_brickMap->getGPUMap();
 
@@ -213,7 +213,7 @@ void App::processInput(GLFWwindow *window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS && !userPointer->pressingESC) {
         userPointer->pressingESC = true;
         if (userPointer->cursorEnabled) {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED | GLFW_CURSOR_HIDDEN);
         } else {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }

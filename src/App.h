@@ -12,6 +12,7 @@
 #include "GL_Abstract/ShaderStorageBuffer.h"
 #include "GL_Abstract/VertexArray.h"
 
+/// @brief The main App which contains most of the logic.
 class App {
     public:
         App(int width, int height, const char* title);
