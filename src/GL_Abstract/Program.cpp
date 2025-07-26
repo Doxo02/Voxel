@@ -32,8 +32,17 @@ Program::Program(const std::string& vertexShader, const std::string& fragmentSha
     std::string vertexSource, fragmentSource;
     if (isPath) {
         std::ifstream vertexFile(vertexShader);
+        if (!vertexFile.is_open()) {
+            spdlog::error("Failed to open vertex shader file: {0}", vertexShader);
+            throw std::runtime_error("Failed to open vertex shader file.");
+        }
         vertexSource = std::string((std::istreambuf_iterator<char>(vertexFile)), std::istreambuf_iterator<char>());
+
         std::ifstream fragmentFile(fragmentShader);
+        if (!fragmentFile.is_open()) {
+            spdlog::error("Failed to open fragment shader file: {0}", fragmentShader);
+            throw std::runtime_error("Failed to open fragment shader file.");
+        }
         fragmentSource = std::string((std::istreambuf_iterator<char>(fragmentFile)), std::istreambuf_iterator<char>());
     } else {
         vertexSource = vertexShader;
