@@ -84,19 +84,21 @@ bool isVoxelSolidGlobal(ivec3 globalVoxelPos) {
 uint getColorIndex(uint brickIndex, int voxelIndex) {
     Brick brick = bricks[brickIndex];
     uint count = 0;
-    for (int i = 0; i < BRICK_SIZE; i++) {
-        if (voxelIndex / 64 - i == 0) {
-            uint64_t word = brick.bitmask[i] << (64 - (voxelIndex % 64));
-            uvec2 mask = unpackUint2x32(word);
-            uvec2 tmpCount = bitCount(mask);
-            count += tmpCount.x + tmpCount.y;
-            break;
-        }
+
+    for (int i = 0; i <= voxelIndex / 64; i++) {
         uint64_t word = brick.bitmask[i];
-        uvec2 mask = unpackUint2x32(word);
-        uvec2 tmpCount = bitCount(mask);
-        count += tmpCount.x + tmpCount.y;
+
+        // Mask out bits after the voxel index in the relevant word
+        if (i == voxelIndex / 64) {
+            uint64_t mask = (1UL << (voxelIndex % 64)) - 1;
+            word &= mask;
+        }
+
+        // Count the set bits in the word
+        uvec2 unpacked = unpackUint2x32(word);
+        count += bitCount(unpacked.x) + bitCount(unpacked.y);
     }
+
     return brick.colorOffset + count;
 }
 
