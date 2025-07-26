@@ -3,6 +3,7 @@ project(Voxel VERSION 0.1.0 LANGUAGES C CXX)
 
 set(OpenGL_GL_PREFERENCE "GLVND")
 set(DOWNLOAD_EXTRACT_TIMESTAMP true)
+set(CXX_STANDARD 17)
 
 find_package(OpenGL REQUIRED)
 find_package(GLEW REQUIRED)
