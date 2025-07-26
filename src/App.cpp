@@ -67,7 +67,8 @@ bool App::init() {
     ImGui_ImplOpenGL3_Init();
     spdlog::info("Initialized ImGui");
 
-    m_program = new gla::Program("/home/lars/dev/Voxel/assets/shader/raymarch.vert", "/home/lars/dev/Voxel/assets/shader/raymarch.frag", true);
+    std::filesystem::path shaderDir = std::filesystem::current_path() / "assets" / "shader";
+    m_program = new gla::Program((shaderDir / "raymarch.vert").string().c_str(), (shaderDir / "raymarch.frag").string().c_str(), true);
     m_program->bind();
 
     m_camera = new Camera(glm::vec3(50.0f, 20.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
