@@ -27,10 +27,10 @@
 ```bash
 git clone https://github.com/Doxo02/Voxel.git
 cd Voxel
-mkdir build && cd build
-cmake ..
-make
-./Voxel
+mkdir build
+cmake -B build
+make -C build
+./build/Voxel
 ```
 
 ---
