@@ -7,6 +7,7 @@
 #include "Rendering/Camera.h"
 
 #include "DataStructures/BrickMap.h"
+#include "DataStructures/World.h"
 
 #include "GL_Abstract/Program.h"
 #include "GL_Abstract/ShaderStorageBuffer.h"
@@ -37,7 +38,7 @@ class App {
         gla::ShaderStorageBuffer* m_colorSSBO;
         gla::VertexArray* m_dummyVAO;
 
-        BrickMap* m_brickMap;
+        World* m_world;
 
         bool viewportResized = false;
         float deltaTime = 0.0f;

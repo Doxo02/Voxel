@@ -77,44 +77,21 @@ bool App::init() {
     m_projection = glm::perspective(glm::radians(m_camera->zoom), (float) m_width / (float) m_height, 0.1f, 100.0f);
 
     glm::ivec3 gridSize(64, 32, 64);
-    m_brickMap = new BrickMap(gridSize);
-
-    ///////////////////////////////////////////////////
-    // TODO: abstract World Gen to different class
-    ///////////////////////////////////////////////////
+    m_world = new World(gridSize);
 
     spdlog::info("Starting to generate terrain...");
-    FastNoiseLite noise;
-    noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-
-    std::vector<float> noiseData(gridSize.x * BRICK_SIZE * gridSize.z * BRICK_SIZE);
-    int index = 0;
-
-    for (int z = 0; z < gridSize.z * BRICK_SIZE; z++) {
-        for(int x = 0; x < gridSize.x * BRICK_SIZE; x++) {
-            noiseData[index++] = (noise.GetNoise((float) x, (float) z) + 1.0f) / 2.0f;
-        }
-    }
-
-    glm::vec4 color(0.0f, 1.0f, 0.0f, 1.0f);
-    glm::vec4 colorBelow(0.5f, 0.5f, 0.5f, 1.0f);
-
-    int voxelsZ = gridSize.z * BRICK_SIZE;
-    int voxelsY = gridSize.y * BRICK_SIZE;
-    int voxelsX = gridSize.x * BRICK_SIZE;
-    for (int z = 0; z < voxelsZ; z++) {
-        for (int x = 0; x < voxelsX; x++) {
-            int yTop = (int) (noiseData[x + z * voxelsX] * (voxelsY / 4.0));
-            m_brickMap->setVoxel(glm::ivec3(x, yTop, z), color);
-            for (int y = 0; y < yTop; y++) {
-                m_brickMap->setVoxel(glm::ivec3(x, y, z), colorBelow);
+    
+    for (int z = 0; z < gridSize.z; z++) {
+        for (int y = 0; y < gridSize.y; y++) {
+            for (int x = 0; x < gridSize.x; x++) {
+                m_world->generateBrick(glm::ivec3(x, y, z));
             }
         }
     }
 
-    spdlog::info("Finished terrain generation. (size: {:.2f} MiB)", m_brickMap->getSizeInBytes() / 1024.0 / 1024.0);
+    spdlog::info("Finished terrain generation. (size: {:.2f} MiB)", m_world->getMap().getSizeInBytes() / 1024.0 / 1024.0);
 
-    GPUBrickMap gpuBrickMap = m_brickMap->getGPUMap();
+    GPUBrickMap gpuBrickMap = m_world->getMap().getGPUMap();
 
     m_brickMapSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.indexData.data(), gpuBrickMap.indexData.size() * sizeof(uint32_t), 0);
     m_brickSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.bricks.data(), gpuBrickMap.bricks.size() * sizeof(GPUBrick), 1);
@@ -165,6 +142,7 @@ void App::run() {
         }
 
         glm::mat4 invVP = glm::inverse(m_projection * m_camera->getViewMatrix());
+        m_program->setUniform1f("time", glfwGetTime());
         m_program->setUniformMat4f("invViewProj", glm::value_ptr(invVP));
         m_program->setUniform3f("cameraPos", m_camera->position);
 

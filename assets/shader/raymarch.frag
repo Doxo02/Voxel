@@ -12,6 +12,8 @@ uniform vec2 resolution;
 uniform uint brickSize;
 uniform ivec3 gridSize;
 
+uniform float time;
+
 vec3 lightDir = normalize(vec3(1.0, 1.0, 0.5)); // World-space directional light
 vec3 lightColor = vec3(1.0);                    // White light
 

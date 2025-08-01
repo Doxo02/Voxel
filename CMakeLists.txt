@@ -38,6 +38,7 @@ add_executable(Voxel
     src/GL_Abstract/VertexBuffer.cpp
     src/GL_Abstract/ElementBuffer.cpp
     src/GL_Abstract/ShaderStorageBuffer.cpp
+    src/DataStructures/World.cpp
     src/App.cpp
     src/Rendering/Camera.cpp)
 
