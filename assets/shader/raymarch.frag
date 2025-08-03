@@ -13,6 +13,7 @@ uniform uint brickSize;
 uniform ivec3 gridSize;
 
 uniform float time;
+uniform float voxelScale;
 
 vec3 lightDir = normalize(vec3(1.0, 1.0, 0.5)); // World-space directional light
 vec3 lightColor = vec3(1.0);                    // White light
@@ -173,16 +174,20 @@ vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex, float totalDist, ivec3 brickP
 
 vec4 traceWorld(vec3 ro, vec3 rd) {    
     float tEnter, tExit;
-    if (!intersectAABB(ro, rd, vec3(0.0), vec3(gridSize), tEnter, tExit)) {
+
+    vec3 scaledRo = ro / voxelScale;
+    vec3 scaledRd = rd / voxelScale;
+
+    if (!intersectAABB(scaledRo, scaledRd, vec3(0.0), vec3(gridSize), tEnter, tExit)) {
         return background;
     }
 
-    ro = ro + rd * max(tEnter, 0.0);
+    scaledRo = scaledRo + scaledRd * max(tEnter, 0.0);
 
-    ivec3 brick = ivec3(floor(ro + 1e-4));
-    ivec3 stp = ivec3(sign(rd));
-    vec3 deltaDist = 1.0 / rd;
-    vec3 tMax = ((vec3(brick) - ro) + 0.5 + vec3(stp) * 0.5) * deltaDist;
+    ivec3 brick = ivec3(floor(scaledRo + 1e-4));
+    ivec3 stp = ivec3(sign(scaledRd));
+    vec3 deltaDist = 1.0 / scaledRd;
+    vec3 tMax = ((vec3(brick) - scaledRo) + 0.5 + vec3(stp) * 0.5) * deltaDist;
     deltaDist = abs(deltaDist);
     
     float totalDist = 0.0;
@@ -192,15 +197,15 @@ vec4 traceWorld(vec3 ro, vec3 rd) {
         if ((any(lessThan(brick, ivec3(0))) || any(greaterThan(brick, gridSize)))) break;
 
         if (brickIndex != 0xFFFFFFFFu) {
-            vec3 mini = ((vec3(brick) - ro) + 0.5 - 0.5 * vec3(stp)) * (1.0 / rd);
+            vec3 mini = ((vec3(brick) - scaledRo) + 0.5 - 0.5 * vec3(stp)) * (1.0 / scaledRd);
             float d = max(mini.x, max(mini.y, mini.z));
-            vec3 intersect = ro + rd * d;
+            vec3 intersect = scaledRo + scaledRd * d;
             vec3 uv3d = intersect - vec3(brick);
 
-            if (brick == floor(ro)) // Handle edge case where camera origin is inside of block
-                uv3d = ro - vec3(brick);
+            if (brick == floor(scaledRo)) // Handle edge case where camera origin is inside of block
+                uv3d = scaledRo - vec3(brick);
 
-            vec4 hit = traceBrick(uv3d * float(BRICK_SIZE), rd, brickIndex, totalDist, brick);
+            vec4 hit = traceBrick(uv3d * float(BRICK_SIZE), scaledRd, brickIndex, totalDist, brick);
 
             if (hit.a > 0.95) 
                     return hit;

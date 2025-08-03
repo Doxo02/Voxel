@@ -39,7 +39,11 @@ class BrickMap {
 
     struct hash_ivec3 {
         size_t operator()(const glm::ivec3& v) const {
-            return std::hash<int>()(v.x) ^ std::hash<int>()(v.y << 1) ^ std::hash<int>()(v.z << 2);
+            // 3 large prime numbers
+            const size_t h1 = std::hash<int>{}(v.x * 73856093);
+            const size_t h2 = std::hash<int>{}(v.y * 19349663);
+            const size_t h3 = std::hash<int>{}(v.z * 83492791);
+            return h1 ^ h2 ^ h3;
         }
     };
 

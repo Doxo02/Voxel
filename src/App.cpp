@@ -81,6 +81,8 @@ bool App::init() {
 
     spdlog::info("Starting to generate terrain...");
     
+    double startTime = glfwGetTime();
+
     for (int z = 0; z < gridSize.z; z++) {
         for (int y = 0; y < gridSize.y; y++) {
             for (int x = 0; x < gridSize.x; x++) {
@@ -89,7 +91,9 @@ bool App::init() {
         }
     }
 
-    spdlog::info("Finished terrain generation. (size: {:.2f} MiB)", m_world->getMap().getSizeInBytes() / 1024.0 / 1024.0);
+    double took = glfwGetTime() - startTime;
+
+    spdlog::info("Finished terrain generation. (size: {:.2f} MiB) (time taken: {:.2f}s)", m_world->getMap().getSizeInBytes() / 1024.0 / 1024.0, took);
 
     GPUBrickMap gpuBrickMap = m_world->getMap().getGPUMap();
 
@@ -104,6 +108,7 @@ bool App::init() {
 
     m_program->setUniform1ui("brickSize", BRICK_SIZE);
     m_program->setUniform3i("gridSize", gridSize);
+    m_program->setUniform1f("voxelScale", 1.0f);
 
     m_dummyVAO = new gla::VertexArray();
 
@@ -111,15 +116,28 @@ bool App::init() {
 }
 
 void App::terminate() {
+    // Clean up ImGui
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
+    // Clean up dynamically allocated objects
+    delete m_program;
+    delete m_camera;
+    delete m_world;
+    delete m_brickMapSSBO;
+    delete m_brickSSBO;
+    delete m_colorSSBO;
+    delete m_dummyVAO;
+
+    // Destroy GLFW window and terminate
     glfwDestroyWindow(m_window);
     glfwTerminate();
 }
 
 void App::run() {
+    float voxelScale = 1.0;
+
     while (!glfwWindowShouldClose(m_window)) {
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
@@ -134,6 +152,7 @@ void App::run() {
         ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
         ImGui::Text("Camere pos: (%.2f, %.2f, %.2f)", m_camera->position.x, m_camera->position.y, m_camera->position.z);
         ImGui::Text("Memory (MiB): %.4f", (float) getCurrentRSS() / (1024.0 * 1024.0));
+        ImGui::SliderFloat("Voxel Scale", &voxelScale, 0.0, 2.0);
         ImGui::End();
 
         if (viewportResized) {
@@ -145,6 +164,7 @@ void App::run() {
         m_program->setUniform1f("time", glfwGetTime());
         m_program->setUniformMat4f("invViewProj", glm::value_ptr(invVP));
         m_program->setUniform3f("cameraPos", m_camera->position);
+        m_program->setUniform1f("voxelScale", voxelScale);
 
         processInput(m_window);
 

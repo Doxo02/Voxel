@@ -1,11 +1,18 @@
 #include "World.h"
 
+#include <mutex>
+
 World::World(glm::ivec3 worldSize, int seed) : m_worldSize(worldSize), m_map(worldSize), m_seed(seed) {
     m_noise = FastNoiseLite(m_seed);
     m_noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
 }
 
+World::~World() {}
+
 bool World::generateBrick(const glm::ivec3 &pos) {
+    static std::mutex mtx;
+    std::lock_guard<std::mutex> lock(mtx);
+
     if(pos.x >= m_worldSize.x || pos.y >= m_worldSize.y || pos.z >= m_worldSize.z ||
        pos.x < 0 || pos.y < 0 || pos.z < 0) 
         return false;
