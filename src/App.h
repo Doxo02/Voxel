@@ -35,7 +35,8 @@ class App {
 
         gla::ShaderStorageBuffer* m_brickMapSSBO;
         gla::ShaderStorageBuffer* m_brickSSBO;
-        gla::ShaderStorageBuffer* m_colorSSBO;
+        gla::ShaderStorageBuffer* m_materialSSBO;
+        gla::ShaderStorageBuffer* m_materialInfosSSBO;
         gla::VertexArray* m_dummyVAO;
 
         World* m_world;

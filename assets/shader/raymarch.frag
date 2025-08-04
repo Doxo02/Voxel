@@ -33,8 +33,16 @@ layout(std430, binding = 1) buffer BrickBuffer {
     Brick bricks[];
 };
 
-layout(std430, binding = 2) buffer ColorBuffer {
-    vec4 colors[];
+layout(std430, binding = 2) buffer MaterialBuffer {
+    uint materials[];
+};
+
+struct MaterialInfo {
+    vec4 color;
+};
+
+layout(std430, binding = 3) buffer MateriInfosBuffer {
+    MaterialInfo materialInfos[];
 };
 
 const int MAX_STEPS = 200;
@@ -84,7 +92,7 @@ bool isVoxelSolidGlobal(ivec3 globalVoxelPos) {
     return isVoxelSolid(brickIndex, voxelIndex);
 }
 
-uint getColorIndex(uint brickIndex, int voxelIndex) {
+uint getMaterialIndex(uint brickIndex, int voxelIndex) {
     Brick brick = bricks[brickIndex];
     uint count = 0;
 
@@ -135,7 +143,7 @@ vec4 traceBrick(vec3 ro, vec3 rd, uint brickIndex, float totalDist, ivec3 brickP
         int voxelIndex = getVoxelIndex(voxel);
         if (isVoxelSolid(brickIndex, voxelIndex)) {
             // return vec4(vec3(voxel) / float(BRICK_SIZE), 1.0);
-            vec4 baseColor = colors[getColorIndex(brickIndex, voxelIndex)];
+            vec4 baseColor = materialInfos[materials[getMaterialIndex(brickIndex, voxelIndex)]].color;
             vec3 normal = estimateNormal(voxel + brickPos * BRICK_SIZE);
 
             // return vec4(normal, 1.0);

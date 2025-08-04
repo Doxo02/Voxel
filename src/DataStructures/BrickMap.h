@@ -9,9 +9,19 @@
 #define BRICK_SIZE 8
 #define VOXELS_PER_BRICK (BRICK_SIZE * BRICK_SIZE * BRICK_SIZE)
 
+enum Material {
+    AIR = 0,
+    GRASS = 1,
+    STONE = 2
+};
+
+struct MaterialInfo {
+    glm::vec4 color;
+};
+
 /// @brief Individual Voxel struct for every Voxel for easy editing on the CPU. (might change to save storage space)
 struct Voxel {
-    glm::vec4 color = glm::vec4(0);
+    Material material;
 };
 
 struct Brick {
@@ -22,14 +32,14 @@ struct Brick {
 /// @brief The brick in the format that is sent to the GPU.
 struct GPUBrick {
     uint64_t bitmask[VOXELS_PER_BRICK / 64];
-    uint32_t colorOffset;
+    uint32_t materialOffset;
 };
 
 /// @brief holds all the voxel data that is sent to the GPU.
 struct GPUBrickMap {
     std::vector<GPUBrick> bricks;
     std::vector<uint32_t> indexData;
-    std::vector<glm::vec4> colors;
+    std::vector<uint32_t> materials;
 };
 
 class BrickMap {
@@ -64,13 +74,13 @@ public:
         return bricks[index];
     }
 
-    void fillBrick(glm::ivec3 pos, glm::vec4 color) {
+    void fillBrick(glm::ivec3 pos, Material material) {
         Brick& brick = getBrick(pos);
         
         for (int x = 0; x < BRICK_SIZE; x++) {
             for (int y = 0; y < BRICK_SIZE; y++) {
                 for (int z = 0; z < BRICK_SIZE; z++) {
-                    brick.voxels[x][y][z].color = color;
+                    brick.voxels[x][y][z].material = material;
                 }
             }
         }
@@ -80,10 +90,10 @@ public:
         getBrick(pos) = brick;
     }
 
-    void setVoxel(glm::ivec3 pos, glm::vec4 color) {
+    void setVoxel(glm::ivec3 pos, Material material) {
         glm::ivec3 brickPos = pos / BRICK_SIZE;
         glm::ivec3 relVoxelPos = pos % BRICK_SIZE;
-        getBrick(brickPos).voxels[relVoxelPos.x][relVoxelPos.y][relVoxelPos.z].color = color;
+        getBrick(brickPos).voxels[relVoxelPos.x][relVoxelPos.y][relVoxelPos.z].material = material;
     }
 
     int getSize() {
@@ -102,14 +112,14 @@ public:
 
         for (auto& brick : bricks) {
             GPUBrick gpuBrick{};
-            gpuBrick.colorOffset = ret.colors.size();
+            gpuBrick.materialOffset = ret.materials.size();
             ret.indexData[brick.pos.x + brick.pos.y * dimensions.x + brick.pos.z * dimensions.x * dimensions.y] = ret.bricks.size();
             for (int z = 0; z < BRICK_SIZE; z++) {
                 for (int y = 0; y < BRICK_SIZE; y++) {
                     for (int x = 0; x < BRICK_SIZE; x++) {
-                        if (brick.voxels[x][y][z].color != glm::vec4(0)) {
+                        if (brick.voxels[x][y][z].material != AIR) {
                             gpuBrick.bitmask[z] |= 1ULL << (x + y * BRICK_SIZE);
-                            ret.colors.push_back(brick.voxels[x][y][z].color);
+                            ret.materials.push_back(brick.voxels[x][y][z].material);
                         }
                     }
                 }

@@ -12,6 +12,12 @@
 #include "platform/rss.h"
 #include <FastNoiseLite.h>
 
+MaterialInfo materialInfos[] = {
+    { glm::vec4(0.0f) } ,
+    { glm::vec4(0.0f, 1.0f, 0.0f, 1.0f ) },
+    { glm::vec4(0.5f, 0.5f, 0.5f, 1.0f ) }
+};
+
 App::App(int width, int height, const char* title)
     : m_width(width), m_height(height), m_title(title) {}
 
@@ -99,7 +105,8 @@ bool App::init() {
 
     m_brickMapSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.indexData.data(), gpuBrickMap.indexData.size() * sizeof(uint32_t), 0);
     m_brickSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.bricks.data(), gpuBrickMap.bricks.size() * sizeof(GPUBrick), 1);
-    m_colorSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.colors.data(), gpuBrickMap.colors.size() * sizeof(glm::vec4), 2);
+    m_materialSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.materials.data(), gpuBrickMap.materials.size() * sizeof(uint32_t), 2);
+    m_materialInfosSSBO = new gla::ShaderStorageBuffer(materialInfos, 3 * sizeof(MaterialInfo), 3);
 
     glm::mat4 invVP = glm::inverse(m_projection * m_camera->getViewMatrix());
     m_program->setUniformMat4f("invViewProj", glm::value_ptr(invVP));
@@ -127,7 +134,7 @@ void App::terminate() {
     delete m_world;
     delete m_brickMapSSBO;
     delete m_brickSSBO;
-    delete m_colorSSBO;
+    delete m_materialSSBO;
     delete m_dummyVAO;
 
     // Destroy GLFW window and terminate
@@ -174,7 +181,7 @@ void App::run() {
         m_dummyVAO->bind();
         m_brickMapSSBO->bindBase();
         m_brickSSBO->bindBase();
-        m_colorSSBO->bindBase();
+        m_materialSSBO->bindBase();
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
         ImGui::Render();
