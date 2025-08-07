@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <glm/glm.hpp>
 #include <array>
+#include <memory.h>
 
 #define BRICK_SIZE 8
 #define VOXELS_PER_BRICK (BRICK_SIZE * BRICK_SIZE * BRICK_SIZE)
@@ -108,30 +109,39 @@ public:
     }
 
     GPUBrickMap getGPUMap() {
-        GPUBrickMap ret{};
+    GPUBrickMap ret{};
 
-        ret.bricks.resize(bricks.size());
-        ret.indexData.resize(dimensions.x * dimensions.y * dimensions.z, 0xFFFFFFFF);
+    ret.bricks.resize(bricks.size());
+    ret.indexData.resize(dimensions.x * dimensions.y * dimensions.z, 0xFFFFFFFF);
 
-        for (auto& brick : bricks) {
-            GPUBrick gpuBrick{};
-            gpuBrick.materialOffset = ret.materials.size();
-            ret.indexData[brick.pos.x + brick.pos.y * dimensions.x + brick.pos.z * dimensions.x * dimensions.y] = ret.bricks.size();
-            for (int z = 0; z < BRICK_SIZE; z++) {
-                for (int y = 0; y < BRICK_SIZE; y++) {
-                    for (int x = 0; x < BRICK_SIZE; x++) {
-                        if (brick.voxels[x][y][z].material != AIR) {
-                            gpuBrick.bitmask[z] |= 1ULL << (x + y * BRICK_SIZE);
-                            ret.materials.push_back(brick.voxels[x][y][z].material);
-                        }
+    for (auto& brick : bricks) {
+        GPUBrick gpuBrick{};
+        // Initialize bitmask to zero
+        memset(gpuBrick.bitmask, 0, sizeof(gpuBrick.bitmask));
+        
+        gpuBrick.materialOffset = ret.materials.size();
+        ret.indexData[brick.pos.x + brick.pos.y * dimensions.x + brick.pos.z * dimensions.x * dimensions.y] = ret.bricks.size();
+        
+        for (int z = 0; z < BRICK_SIZE; z++) {
+            for (int y = 0; y < BRICK_SIZE; y++) {
+                for (int x = 0; x < BRICK_SIZE; x++) {
+                    if (brick.voxels[x][y][z].material != AIR) {
+                        // CORRECT voxel index calculation (matches your shader!)
+                        uint32_t voxelIndex = x + y * BRICK_SIZE + z * BRICK_SIZE * BRICK_SIZE;
+                        uint32_t wordIndex = voxelIndex / 64;
+                        uint32_t bitIndex = voxelIndex % 64;
+                        
+                        gpuBrick.bitmask[wordIndex] |= 1ULL << bitIndex;
+                        ret.materials.push_back(brick.voxels[x][y][z].material);
                     }
                 }
             }
-            ret.bricks.push_back(gpuBrick);
         }
-
-        return ret;
+        ret.bricks.push_back(gpuBrick);
     }
+
+    return ret;
+}
 
     int getSizeInBytes() {
         int brickSize = bricks.size() * sizeof(Brick);

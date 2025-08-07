@@ -79,7 +79,7 @@ bool App::init() {
     m_program = new gla::Program((shaderDir / "raymarch.vert").string().c_str(), (shaderDir / "raymarch.frag").string().c_str(), true);
     m_program->bind();
 
-    m_camera = new Camera(glm::vec3(50.0f, 20.0f, 50.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
+    m_camera = new Camera(glm::vec3(80.0f, 70.0f, 70.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
     m_projection = glm::perspective(glm::radians(m_camera->zoom), (float) m_width / (float) m_height, 0.1f, 100.0f);
 
     glm::ivec3 gridSize(64, 32, 64);
@@ -177,6 +177,11 @@ void App::run() {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR) {
+            spdlog::error("OpenGL error: {}", error);
+        }
+
         m_program->bind();
         m_dummyVAO->bind();
         m_brickMapSSBO->bindBase();
@@ -184,6 +189,11 @@ void App::run() {
         m_materialSSBO->bindBase();
         m_materialInfosSSBO->bindBase();
         glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        error = glGetError();
+        if (error != GL_NO_ERROR) {
+            spdlog::error("OpenGL error: {}", error);
+        }
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
