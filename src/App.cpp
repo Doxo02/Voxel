@@ -43,7 +43,10 @@ bool App::init() {
     spdlog::info("Created window.");
 
     glfwMakeContextCurrent(m_window);
-    glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED );
+    glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    
+    // Initialize cursor state to match GLFW setting
+    cursorEnabled = false;
 
     glfwSetWindowUserPointer(m_window, this);
 
@@ -69,7 +72,7 @@ bool App::init() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NoKeyboard | ImGuiConfigFlags_NavNoCaptureKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavNoCaptureKeyboard;
 
     ImGui_ImplGlfw_InitForOpenGL(m_window, true);
     ImGui_ImplOpenGL3_Init();
@@ -143,7 +146,11 @@ void App::terminate() {
 }
 
 void App::run() {
-    float voxelScale = 1.0;
+    float voxelScale = 1.0f;
+
+    glm::vec3 lightPos(80.0f, 70.0f, 80.0f);
+    glm::vec3 lightColor(1.0f);
+    float lightIntensity = 1.0f;
 
     while (!glfwWindowShouldClose(m_window)) {
         float currentFrame = glfwGetTime();
@@ -160,6 +167,9 @@ void App::run() {
         ImGui::Text("Camere pos: (%.2f, %.2f, %.2f)", m_camera->position.x, m_camera->position.y, m_camera->position.z);
         ImGui::Text("Memory (MiB): %.4f", (float) getCurrentRSS() / (1024.0 * 1024.0));
         ImGui::SliderFloat("Voxel Scale", &voxelScale, 0.0, 2.0);
+        ImGui::InputFloat3("Light Pos", glm::value_ptr(lightPos));
+        ImGui::InputFloat3("Light Color", glm::value_ptr(lightColor));
+        ImGui::InputFloat("Light Intensity", &lightIntensity, 0.01, 0.1);
         ImGui::End();
 
         if (viewportResized) {
@@ -172,6 +182,9 @@ void App::run() {
         m_program->setUniformMat4f("invViewProj", glm::value_ptr(invVP));
         m_program->setUniform3f("cameraPos", m_camera->position);
         m_program->setUniform1f("voxelScale", voxelScale);
+        m_program->setUniform3f("lightPos", lightPos);
+        m_program->setUniform3f("lightColor", lightColor);
+        m_program->setUniform1f("lightIntensity", lightIntensity);
 
         processInput(m_window);
 

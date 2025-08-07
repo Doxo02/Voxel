@@ -20,9 +20,9 @@ uniform ivec3 gridSize;
 uniform float time;
 uniform float voxelScale;
 
-vec3 lightPos = vec3(sin(time) * (gridSize.x / 2) * voxelScale, 80.0 * voxelScale, cos(time) * (gridSize.z / 2) * voxelScale); // World-space directional light
-vec3 lightColor = vec3(1.0);                    // White light
-float lightIntensity = 10.0;
+uniform vec3 lightPos;
+uniform vec3 lightColor;
+uniform float lightIntensity;
 
 vec4 background = vec4(0.1, 0.1, 0.8, 1.0);
 
@@ -141,6 +141,43 @@ vec3 estimateNormal(ivec3 voxelPos) {
     }
 
     return normalize(normal);
+}
+
+// PBR functions for specular reflections
+float distributionGGX(vec3 N, vec3 H, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+    
+    float num = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+    
+    return num / denom;
+}
+
+float geometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+    
+    float num = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+    
+    return num / denom;
+}
+
+float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = geometrySchlickGGX(NdotV, roughness);
+    float ggx1 = geometrySchlickGGX(NdotL, roughness);
+    
+    return ggx1 * ggx2;
+}
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 HitInfo traceBrick(vec3 ro, vec3 rd, vec3 originalRo, uint brickIndex, float totalDist, ivec3 brickPos, float maxDist) {
@@ -323,17 +360,43 @@ void main() {
         MaterialInfo mat = materialInfos[materials[getMaterialIndex(brickIndex, voxelIndex)]];
         vec4 baseColor = mat.albedo;
 
-        // Lighting calculations
+        // PBR lighting calculations
+        vec3 V = normalize(cameraPos - hit.position); // View direction
+        vec3 H = normalize(lightDir + V); // Halfway vector
+        
         float NdotL = max(dot(normal, lightDir), 0.0);
+        float NdotV = max(dot(normal, V), 0.0);
+        float HdotV = max(dot(H, V), 0.0);
+        
+        // Calculate base reflectance (F0)
+        vec3 F0 = mix(vec3(0.04), baseColor.rgb, mat.metallic);
+        
+        // Cook-Torrance BRDF
+        float NDF = distributionGGX(normal, H, mat.roughness);
+        float G = geometrySmith(normal, V, lightDir, mat.roughness);
+        vec3 F = fresnelSchlick(HdotV, F0);
+        
+        vec3 kS = F; // Specular contribution
+        vec3 kD = vec3(1.0) - kS; // Diffuse contribution
+        kD *= 1.0 - mat.metallic; // Metals have no diffuse
+        
+        // Specular calculation
+        vec3 numerator = NDF * G * F;
+        float denominator = 4.0 * NdotV * NdotL + 0.0001; // Add small value to prevent divide by zero
+        vec3 specular = numerator / denominator;
         
         // Start with ambient lighting
-        vec3 ambient = baseColor.rgb * 0.2;
+        vec3 ambient = baseColor.rgb * 0.1; // Reduced ambient for better contrast
         vec3 finalColor = ambient;
         
-        // Add diffuse lighting if NOT in shadow
+        // Add lighting if NOT in shadow
         if (!shadowHit.hit) {
-            vec3 diffuse = baseColor.rgb * lightColor * NdotL;
-            finalColor += diffuse;
+            // Diffuse lighting
+            vec3 diffuse = kD * baseColor.rgb / PI;
+            
+            // Combine diffuse and specular
+            vec3 lighting = (diffuse + specular) * lightColor * NdotL * lightIntensity;
+            finalColor += lighting;
         }
 
         outColor = vec4(finalColor, baseColor.a);
