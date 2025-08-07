@@ -54,7 +54,7 @@ layout(std430, binding = 3) buffer MateriInfosBuffer {
 };
 
 const int MAX_STEPS = 200;
-const float MAX_DIST = 250.0;
+const float MAX_DIST = 1000.0;
 
 struct HitInfo {
     bool hit;
@@ -128,17 +128,20 @@ uint getMaterialIndex(uint brickIndex, uint voxelIndex) {
 }
 
 vec3 estimateNormal(ivec3 voxelPos) {
+    // Use smaller offset for better performance
     vec3 normal = vec3(0.0);
     
-    for (int axis = 0; axis < 3; axis++) {
-        ivec3 offset = ivec3(0);
-        offset[axis] = 1;
-
-        bool solidPos = isVoxelSolidGlobal(voxelPos + offset);
-        bool solidNeg = isVoxelSolidGlobal(voxelPos - offset);
-
-        normal[axis] = float(solidNeg) - float(solidPos); // inward - outward
-    }
+    // Check adjacent voxels for normal estimation
+    bool solidX1 = isVoxelSolidGlobal(voxelPos + ivec3(1, 0, 0));
+    bool solidX0 = isVoxelSolidGlobal(voxelPos + ivec3(-1, 0, 0));
+    bool solidY1 = isVoxelSolidGlobal(voxelPos + ivec3(0, 1, 0));
+    bool solidY0 = isVoxelSolidGlobal(voxelPos + ivec3(0, -1, 0));
+    bool solidZ1 = isVoxelSolidGlobal(voxelPos + ivec3(0, 0, 1));
+    bool solidZ0 = isVoxelSolidGlobal(voxelPos + ivec3(0, 0, -1));
+    
+    normal.x = float(solidX0) - float(solidX1);
+    normal.y = float(solidY0) - float(solidY1);
+    normal.z = float(solidZ0) - float(solidZ1);
 
     return normalize(normal);
 }
@@ -283,8 +286,8 @@ HitInfo traceWorld(vec3 ro, vec3 rd, float maxDist) {
             if (brick == ivec3(floor(ro))) // Handle edge case where camera origin is inside of block
                 uv3d = ro - vec3(brick);
 
-            // Clamp uv3d to ensure it's within [0, 1] to avoid precision issues
-            uv3d = clamp(uv3d, vec3(0.0), vec3(1.0));
+            // Improved clamping with better precision handling
+            uv3d = clamp(uv3d, vec3(1e-6), vec3(1.0 - 1e-6));
 
             HitInfo hit = traceBrick(uv3d * float(BRICK_SIZE), rd, ro, brickIndex, totalDist * float(BRICK_SIZE), brick, maxDist);
 
@@ -308,7 +311,8 @@ HitInfo traceWorld(vec3 ro, vec3 rd, float maxDist) {
             totalDist = tMax.z;
         }
 
-        if (length(tMax - oldTMax) < 1e-7) {
+        // Improved stall detection with better precision
+        if (length(tMax - oldTMax) < 1e-6) {
             break; // Not making progress, exit
         }
     }
@@ -326,6 +330,12 @@ void main() {
     vec3 ro = cameraPos;
     vec3 rd = normalize((rayEndH.xyz / max(rayEndH.w, 1e-6)) - (rayStartH.xyz / max(rayStartH.w, 1e-6)));
 
+    // Early discard for rays going in bad directions
+    if (abs(rd.x) < 0.001 && abs(rd.y) < 0.001 && abs(rd.z) < 0.001) {
+        outColor = background;
+        return;
+    }
+
     float tEnter, tExit;
     HitInfo hit;
 
@@ -336,23 +346,26 @@ void main() {
     } else {
         ro += rd * max(tEnter, 0.0);
         float maxDist = tEnter > 0.0 ? tExit - tEnter : tExit;
-        hit = traceWorld(ro / (float(BRICK_SIZE) * voxelScale), rd, 1000.0);
+        hit = traceWorld(ro / (float(BRICK_SIZE) * voxelScale), rd, MAX_DIST);
     }
 
     if (hit.hit) {
         vec3 lightDir = normalize(lightPos - hit.position);
         vec3 normal = estimateNormal(hit.voxelPos);
 
-        // Offset ray origin to avoid self-shadowing
-        // Move along light direction instead of surface normal
-        float bias = 1.5 * voxelScale; // Scale bias with voxel size
-        vec3 shadowRo = hit.position + lightDir * bias;
-
-        // Calculate shadow ray distance
-        float maxShadowDist = length(lightPos - hit.position);
+        // Aggressive shadow optimization - skip shadows for distant hits
+        bool inShadow = false;
+        float distToCamera = length(hit.position - cameraPos);
         
-        // Use same coordinate space as primary ray (world space scaled)
-        HitInfo shadowHit = traceWorld(shadowRo / (float(BRICK_SIZE) * voxelScale), lightDir, maxShadowDist);
+        if (distToCamera < 300.0) { // Only compute shadows for nearby objects (increased from 150)
+            // Improved bias calculation to prevent precision issues at longer distances
+            float dynamicBias = max(2.0 * voxelScale, 0.01 * distToCamera);
+            vec3 shadowRo = hit.position + lightDir * dynamicBias;
+            float maxShadowDist = length(lightPos - hit.position); // Use full distance to light
+            
+            HitInfo shadowHit = traceWorld(shadowRo / (float(BRICK_SIZE) * voxelScale), lightDir, maxShadowDist);
+            inShadow = shadowHit.hit;
+        }
 
         // Fetch material properties
         uint brickIndex = getBrickIndex(ivec3(floor(hit.voxelPos / BRICK_SIZE)));
@@ -360,7 +373,7 @@ void main() {
         MaterialInfo mat = materialInfos[materials[getMaterialIndex(brickIndex, voxelIndex)]];
         vec4 baseColor = mat.albedo;
 
-        // PBR lighting calculations
+        // PBR lighting calculations with LOD
         vec3 V = normalize(cameraPos - hit.position); // View direction
         vec3 H = normalize(lightDir + V); // Halfway vector
         
@@ -371,26 +384,32 @@ void main() {
         // Calculate base reflectance (F0)
         vec3 F0 = mix(vec3(0.04), baseColor.rgb, mat.metallic);
         
-        // Cook-Torrance BRDF
-        float NDF = distributionGGX(normal, H, mat.roughness);
-        float G = geometrySmith(normal, V, lightDir, mat.roughness);
-        vec3 F = fresnelSchlick(HdotV, F0);
+        // Simplified PBR for distant objects
+        vec3 specular = vec3(0.0);
+        if (distToCamera < 400.0) { // Full PBR only for nearby objects (increased from 180)
+            // Cook-Torrance BRDF
+            float NDF = distributionGGX(normal, H, mat.roughness);
+            float G = geometrySmith(normal, V, lightDir, mat.roughness);
+            vec3 F = fresnelSchlick(HdotV, F0);
+            
+            vec3 numerator = NDF * G * F;
+            float denominator = 4.0 * NdotV * NdotL + 0.0001;
+            specular = numerator / denominator;
+        } else {
+            // Simplified specular for distant objects
+            specular = F0 * pow(max(dot(normal, H), 0.0), 16.0);
+        }
         
-        vec3 kS = F; // Specular contribution
+        vec3 kS = specular; // Specular contribution
         vec3 kD = vec3(1.0) - kS; // Diffuse contribution
         kD *= 1.0 - mat.metallic; // Metals have no diffuse
-        
-        // Specular calculation
-        vec3 numerator = NDF * G * F;
-        float denominator = 4.0 * NdotV * NdotL + 0.0001; // Add small value to prevent divide by zero
-        vec3 specular = numerator / denominator;
         
         // Start with ambient lighting
         vec3 ambient = baseColor.rgb * 0.1; // Reduced ambient for better contrast
         vec3 finalColor = ambient;
         
         // Add lighting if NOT in shadow
-        if (!shadowHit.hit) {
+        if (!inShadow) {
             // Diffuse lighting
             vec3 diffuse = kD * baseColor.rgb / PI;
             

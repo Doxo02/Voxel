@@ -49,9 +49,9 @@ make -C build
 
 ## TODO
 
-- [ ] Refactoring
-- [ ] Material support
-- [ ] Lighting system (directional, ambient)
+- [x] Refactoring
+- [x] Material support
+- [x] Lighting system (directional, ambient)
 - [ ] Multithreaded chunk generation
 - [ ] Save/load voxel worlds
 
