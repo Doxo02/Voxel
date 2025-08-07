@@ -20,7 +20,7 @@ uniform ivec3 gridSize;
 uniform float time;
 uniform float voxelScale;
 
-vec3 lightPos = vec3(sin(time) * 100.0, 80.0, cos(time) * 100.0); // World-space directional light
+vec3 lightPos = vec3(sin(time) * (gridSize.x / 2) * voxelScale, 80.0 * voxelScale, cos(time) * (gridSize.z / 2) * voxelScale); // World-space directional light
 vec3 lightColor = vec3(1.0);                    // White light
 float lightIntensity = 10.0;
 
@@ -92,7 +92,7 @@ uint getBrickIndex(ivec3 brickPos) {
 }
 
 bool isVoxelSolidGlobal(ivec3 globalVoxelPos) {
-    if(any(lessThan(globalVoxelPos, ivec3(0))) || any(greaterThan(globalVoxelPos, gridSize * BRICK_SIZE)))
+    if(any(lessThan(globalVoxelPos, ivec3(0))) || any(greaterThanEqual(globalVoxelPos, gridSize * BRICK_SIZE)))
         return false;
     
     ivec3 brickCoord = globalVoxelPos / BRICK_SIZE;
@@ -186,9 +186,9 @@ HitInfo traceBrick(vec3 ro, vec3 rd, vec3 originalRo, uint brickIndex, float tot
             
             float tEntry = max(max(tNear.x, tNear.y), tNear.z);
             
-            // Convert brick-local hit position to world coordinates
+            // Convert brick-local hit position to world coordinates with voxel scaling
             vec3 brickLocalHit = ro + safeRd * tEntry;
-            vec3 worldHitPos = vec3(brickPos) * float(BRICK_SIZE) + brickLocalHit;
+            vec3 worldHitPos = vec3(brickPos) * float(BRICK_SIZE) * voxelScale + brickLocalHit * voxelScale;
             
             return HitInfo(true, worldHitPos, voxel + brickPos * BRICK_SIZE);
         }
@@ -293,12 +293,13 @@ void main() {
     HitInfo hit;
 
     vec3 epsilonVec = vec3(1e-3);
-    if (!intersectAABB(ro, rd, epsilonVec, vec3(gridSize) * float(BRICK_SIZE) - epsilonVec, tEnter, tExit)) {
+    vec3 worldSize = vec3(gridSize) * float(BRICK_SIZE) * voxelScale;
+    if (!intersectAABB(ro, rd, epsilonVec, worldSize - epsilonVec, tEnter, tExit)) {
         hit = HitInfo(false, vec3(0), ivec3(0));
     } else {
         ro += rd * max(tEnter, 0.0);
         float maxDist = tEnter > 0.0 ? tExit - tEnter : tExit;
-        hit = traceWorld(ro / float(BRICK_SIZE), rd, 1000.0);
+        hit = traceWorld(ro / (float(BRICK_SIZE) * voxelScale), rd, 1000.0);
     }
 
     if (hit.hit) {
@@ -307,14 +308,14 @@ void main() {
 
         // Offset ray origin to avoid self-shadowing
         // Move along light direction instead of surface normal
-        float bias = 1.5; // Small bias along light direction
+        float bias = 1.5 * voxelScale; // Scale bias with voxel size
         vec3 shadowRo = hit.position + lightDir * bias;
 
         // Calculate shadow ray distance
         float maxShadowDist = length(lightPos - hit.position);
         
-        // Use same coordinate space as primary ray (world space)
-        HitInfo shadowHit = traceWorld(shadowRo / float(BRICK_SIZE), lightDir, maxShadowDist);
+        // Use same coordinate space as primary ray (world space scaled)
+        HitInfo shadowHit = traceWorld(shadowRo / (float(BRICK_SIZE) * voxelScale), lightDir, maxShadowDist);
 
         // Fetch material properties
         uint brickIndex = getBrickIndex(ivec3(floor(hit.voxelPos / BRICK_SIZE)));
