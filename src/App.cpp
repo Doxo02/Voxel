@@ -12,10 +12,10 @@
 #include "platform/rss.h"
 #include <FastNoiseLite.h>
 
-MaterialInfo materialInfos[] = {
-    { glm::vec4(0.0f) } ,
-    { glm::vec4(0.0f, 1.0f, 0.0f, 1.0f ) },
-    { glm::vec4(0.5f, 0.5f, 0.5f, 1.0f ) }
+std::vector<MaterialInfo> materialInfos = {
+    { glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), 0.0f, 0.0f },     // AIR
+    { glm::vec4(0.0f, 1.0f, 0.0f, 1.0f), 0.0f, 0.2f },     // GRASS
+    { glm::vec4(0.5f, 0.5f, 0.5f, 1.0f), 0.2f, 0.7f }      // STONE
 };
 
 App::App(int width, int height, const char* title)
@@ -106,7 +106,7 @@ bool App::init() {
     m_brickMapSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.indexData.data(), gpuBrickMap.indexData.size() * sizeof(uint32_t), 0);
     m_brickSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.bricks.data(), gpuBrickMap.bricks.size() * sizeof(GPUBrick), 1);
     m_materialSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.materials.data(), gpuBrickMap.materials.size() * sizeof(uint32_t), 2);
-    m_materialInfosSSBO = new gla::ShaderStorageBuffer(materialInfos, 3 * sizeof(MaterialInfo), 3);
+    m_materialInfosSSBO = new gla::ShaderStorageBuffer(materialInfos.data(), materialInfos.size() * sizeof(MaterialInfo), 3);
 
     glm::mat4 invVP = glm::inverse(m_projection * m_camera->getViewMatrix());
     m_program->setUniformMat4f("invViewProj", glm::value_ptr(invVP));
@@ -182,6 +182,7 @@ void App::run() {
         m_brickMapSSBO->bindBase();
         m_brickSSBO->bindBase();
         m_materialSSBO->bindBase();
+        m_materialInfosSSBO->bindBase();
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
         ImGui::Render();

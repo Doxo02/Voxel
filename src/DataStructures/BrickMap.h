@@ -15,8 +15,11 @@ enum Material {
     STONE = 2
 };
 
-struct MaterialInfo {
-    glm::vec4 color;
+struct alignas(16) MaterialInfo {
+    glm::vec4 albedo;
+    float metallic;
+    float roughness;
+    float padding = 0.0f;
 };
 
 /// @brief Individual Voxel struct for every Voxel for easy editing on the CPU. (might change to save storage space)
