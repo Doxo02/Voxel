@@ -128,7 +128,6 @@ uint getMaterialIndex(uint brickIndex, uint voxelIndex) {
 }
 
 vec3 estimateNormal(ivec3 voxelPos) {
-    // Use smaller offset for better performance
     vec3 normal = vec3(0.0);
     
     // Check adjacent voxels for normal estimation
@@ -211,9 +210,6 @@ HitInfo traceBrick(vec3 ro, vec3 rd, vec3 originalRo, uint brickIndex, float tot
         uint voxelIndex = getVoxelIndex(voxel);
 
         if (isVoxelSolid(brickIndex, voxelIndex)) {
-            // Calculate exact world hit position using ray marching
-            // We need to find the exact point where the ray intersects the voxel surface
-            
             // Calculate the exact intersection with the voxel boundaries
             vec3 voxelMin = vec3(voxel);
             vec3 voxelMax = vec3(voxel) + 1.0;
@@ -286,7 +282,6 @@ HitInfo traceWorld(vec3 ro, vec3 rd, float maxDist) {
             if (brick == ivec3(floor(ro))) // Handle edge case where camera origin is inside of block
                 uv3d = ro - vec3(brick);
 
-            // Improved clamping with better precision handling
             uv3d = clamp(uv3d, vec3(1e-6), vec3(1.0 - 1e-6));
 
             HitInfo hit = traceBrick(uv3d * float(BRICK_SIZE), rd, ro, brickIndex, totalDist * float(BRICK_SIZE), brick, maxDist);
@@ -311,7 +306,6 @@ HitInfo traceWorld(vec3 ro, vec3 rd, float maxDist) {
             totalDist = tMax.z;
         }
 
-        // Improved stall detection with better precision
         if (length(tMax - oldTMax) < 1e-6) {
             break; // Not making progress, exit
         }
@@ -357,8 +351,7 @@ void main() {
         bool inShadow = false;
         float distToCamera = length(hit.position - cameraPos);
         
-        if (distToCamera < 300.0) { // Only compute shadows for nearby objects (increased from 150)
-            // Improved bias calculation to prevent precision issues at longer distances
+        if (distToCamera < 300.0) { // Only compute shadows for nearby objects
             float dynamicBias = max(2.0 * voxelScale, 0.01 * distToCamera);
             vec3 shadowRo = hit.position + lightDir * dynamicBias;
             float maxShadowDist = length(lightPos - hit.position); // Use full distance to light
@@ -386,7 +379,7 @@ void main() {
         
         // Simplified PBR for distant objects
         vec3 specular = vec3(0.0);
-        if (distToCamera < 400.0) { // Full PBR only for nearby objects (increased from 180)
+        if (distToCamera < 400.0) {
             // Cook-Torrance BRDF
             float NDF = distributionGGX(normal, H, mat.roughness);
             float G = geometrySmith(normal, V, lightDir, mat.roughness);
@@ -405,7 +398,7 @@ void main() {
         kD *= 1.0 - mat.metallic; // Metals have no diffuse
         
         // Start with ambient lighting
-        vec3 ambient = baseColor.rgb * 0.1; // Reduced ambient for better contrast
+        vec3 ambient = baseColor.rgb * 0.1;
         vec3 finalColor = ambient;
         
         // Add lighting if NOT in shadow
