@@ -11,6 +11,7 @@
 
 #include "platform/rss.h"
 #include <FastNoiseLite.h>
+#include <GLFW/glfw3.h>
 
 #include "vxe/DataStructures/BrickMap.h"
 
@@ -24,46 +25,21 @@ App::App(int width, int height, const char* title)
     : m_width(width), m_height(height), m_title(title) {}
 
 bool App::init() {
-    if (!glfwInit()) {
-        spdlog::critical("Failed to initialize GLFW!");
-        return false;
-    }
-    spdlog::info("Initialized GLFW.");
+    m_window = vxe::Window::Create({m_title, (uint32_t) m_width, (uint32_t) m_height});
 
-    // Set OpenGL version
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    m_window = glfwCreateWindow(m_width, m_height, m_title, nullptr, nullptr);
-    if (!m_window)
-    {
-        spdlog::critical("Failed to create GLFW window");
-        glfwTerminate();
-        return false;
-    }
-    spdlog::info("Created window.");
-
-    glfwMakeContextCurrent(m_window);
-    glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    
-    // Initialize cursor state to match GLFW setting
-    cursorEnabled = false;
-
-    glfwSetWindowUserPointer(m_window, this);
-
-    // Set Callbacks
-    glfwSetFramebufferSizeCallback(m_window, onResize);
-    glfwSetCursorPosCallback(m_window, mouseCallback);
-    glfwSetScrollCallback(m_window, scrollCallback);
-
-    glfwMakeContextCurrent(m_window);
-    glfwSwapInterval(0);
-
-    m_renderer = new vxe::Renderer();
-    m_renderer->init();
+    m_renderer = std::make_unique<vxe::Renderer>();
+    m_renderer->init(m_window.get());
     m_renderer->getAPI()->setClearColor(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
     m_renderer->getAPI()->setViewport(0, 0, m_width, m_height);
+
+    m_window->init();
+    m_window->setCursorEnabled(false);
+
+    VXE_SUBSCRIBE_MEMBER(vxe::WindowResizeEvent, this, &App::onResize);
+    VXE_SUBSCRIBE_MEMBER(vxe::KeyPressedEvent, this, &App::onKeyPressed);
+    VXE_SUBSCRIBE_MEMBER(vxe::MouseMovedEvent, this, &App::onMouseMove);
+    VXE_SUBSCRIBE_MEMBER(vxe::MouseScrolledEvent, this, &App::onMouseScroll);
+    VXE_SUBSCRIBE_MEMBER(vxe::WindowCloseEvent, this, &App::onWindowClose);
 
     // Init ImGui
     IMGUI_CHECKVERSION();
@@ -71,7 +47,7 @@ bool App::init() {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavNoCaptureKeyboard;
 
-    ImGui_ImplGlfw_InitForOpenGL(m_window, true);
+    ImGui_ImplGlfw_InitForOpenGL(static_cast<GLFWwindow*>(m_window->getNativeWindow()), true);
     ImGui_ImplOpenGL3_Init();
     spdlog::info("Initialized ImGui");
 
@@ -82,12 +58,12 @@ bool App::init() {
     m_program->compile();
     m_program->bind();
 
-    m_camera = new Camera(glm::vec3(80.0f, 70.0f, 70.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
+    m_camera = std::make_unique<Camera>(glm::vec3(80.0f, 70.0f, 70.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
     m_projection = glm::perspective(glm::radians(m_camera->zoom), (float) m_width / (float) m_height, 0.1f, 100.0f);
 
     glm::ivec3 gridSize(64, 32, 64);
 
-    m_grid = new vxe::VoxelGrid(vxe::GridType::BRICK_MAP, gridSize);
+    m_grid = std::make_unique<vxe::VoxelGrid>(vxe::GridType::BRICK_MAP, gridSize);
 
     spdlog::info("Starting to generate terrain...");
     
@@ -131,19 +107,8 @@ void App::terminate() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    // Clean up dynamically allocated objects
-    delete m_program;
-    delete m_camera;
-    delete m_brickMapSSBO;
-    delete m_brickSSBO;
-    delete m_materialSSBO;
-    delete m_materialInfosSSBO;
-    delete m_grid;
-    delete m_renderer;
-
-    // Destroy GLFW window and terminate
-    glfwDestroyWindow(m_window);
-    glfwTerminate();
+    // Smart pointers will automatically clean up all allocated objects
+    // No manual delete calls needed
 }
 
 void App::run() {
@@ -153,7 +118,7 @@ void App::run() {
     glm::vec3 lightColor(1.0f);
     float lightIntensity = 1.0f;
 
-    while (!glfwWindowShouldClose(m_window)) {
+    while (running) {
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
@@ -187,7 +152,7 @@ void App::run() {
         m_program->setUniform("lightColor", lightColor);
         m_program->setUniform("lightIntensity", lightIntensity);
 
-        processInput(m_window);
+        processInput();
 
         m_renderer->beginFrame();
 
@@ -201,79 +166,87 @@ void App::run() {
         m_brickSSBO->bindBase();
         m_materialSSBO->bindBase();
         m_materialInfosSSBO->bindBase();
-        m_renderer->submit(m_grid);
+        m_renderer->submit(m_grid.get());
 
         // error = glGetError();
         // if (error != GL_NO_ERROR) {
         //     spdlog::error("OpenGL error: {}", error);
         // }
 
-        m_renderer->endFrame();
-
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        glfwSwapBuffers(m_window);
-
-        glfwPollEvents();
+        m_renderer->endFrame();
+        m_window->onUpdate();
     }
 }
 
-void App::onResize(GLFWwindow *window, int width, int height) {
-    App* userPointer = (App*) glfwGetWindowUserPointer(window);
-    glViewport(0, 0, width, height);
-    userPointer->m_projection = glm::perspective(glm::radians(userPointer->m_camera->zoom), (float) width / (float) height, 0.1f, 100.0f);
-    userPointer->viewportResized = true;
-
-    userPointer->m_width = width;
-    userPointer->m_height = height;
+void App::processInput() {
+    if (m_window->isKeyDown(vxe::Key::W))
+        m_camera->processKeyboard(Camera::FORWARD, deltaTime);
+    if (m_window->isKeyDown(vxe::Key::S))
+        m_camera->processKeyboard(Camera::BACKWARD, deltaTime);
+    if (m_window->isKeyDown(vxe::Key::A))
+        m_camera->processKeyboard(Camera::LEFT, deltaTime);
+    if (m_window->isKeyDown(vxe::Key::D))
+        m_camera->processKeyboard(Camera::RIGHT, deltaTime);
+    if (m_window->isKeyDown(vxe::Key::Space))
+        m_camera->processKeyboard(Camera::UP, deltaTime);
+    if (m_window->isKeyDown(vxe::Key::LeftShift))
+        m_camera->processKeyboard(Camera::DOWN, deltaTime);
 }
 
-void App::processInput(GLFWwindow *window) {
-    App* userPointer = (App*) glfwGetWindowUserPointer(window);
+bool App::onResize(vxe::WindowResizeEvent& e) {
+    m_renderer->getAPI()->setViewport(0, 0, e.getWidth(), e.getHeight());
+    m_projection = glm::perspective(glm::radians(m_camera->zoom), (float) e.getWidth() / (float) e.getHeight(), 0.1f, 100.0f);
+    viewportResized = true;
 
-    if (glfwGetKey(window, GLFW_KEY_W))
-        userPointer->m_camera->processKeyboard(Camera::FORWARD, userPointer->deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A))
-        userPointer->m_camera->processKeyboard(Camera::LEFT, userPointer->deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S))
-        userPointer->m_camera->processKeyboard(Camera::BACKWARD, userPointer->deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D))
-        userPointer->m_camera->processKeyboard(Camera::RIGHT, userPointer->deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_SPACE))
-        userPointer->m_camera->processKeyboard(Camera::UP, userPointer->deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
-        userPointer->m_camera->processKeyboard(Camera::DOWN, userPointer->deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS && !userPointer->pressingESC) {
-        userPointer->pressingESC = true;
-        if (userPointer->cursorEnabled) {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    m_width = e.getWidth();
+    m_height = e.getHeight();
+
+    return true;
+}
+
+bool App::onKeyPressed(vxe::KeyPressedEvent& e) {
+    if (e.getKeyCode() == (int) vxe::Key::Escape) {
+        if (cursorEnabled) {
+            m_window->setCursorEnabled(false);
         } else {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            m_window->setCursorEnabled(true);
         }
 
-        userPointer->cursorEnabled = !userPointer->cursorEnabled;
+        cursorEnabled = !cursorEnabled;
+        return true;
     }
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_RELEASE)
-        userPointer->pressingESC = false;
+    return false;
 }
 
-void App::mouseCallback(GLFWwindow *window, double xPos, double yPos) {
-    App* userPointer = (App*) glfwGetWindowUserPointer(window);
-
-    if (userPointer->cursorEnabled) return;
-    double xOffset = userPointer->lastX - xPos;
-    double yOffset = userPointer->lastY - yPos;
-    userPointer->lastX = xPos;
-    userPointer->lastY = yPos;
-
-    userPointer->m_camera->processMouseMovement(xOffset, yOffset);
+bool App::onKeyReleased(vxe::KeyReleasedEvent& e) {
+    return false;
 }
 
-void App::scrollCallback(GLFWwindow *window, double xoffset, double yoffset) {
-    App* userPointer = (App*) glfwGetWindowUserPointer(window);
-    userPointer->m_camera->processMouseScroll(yoffset);
+bool App::onMouseMove(vxe::MouseMovedEvent& e) {
+
+    if (cursorEnabled) return false;
+    double xOffset = lastX - e.getX();
+    double yOffset = lastY - e.getY();
+    lastX = e.getX();
+    lastY = e.getY();
+
+    m_camera->processMouseMovement(xOffset, yOffset);
+    return true;
 }
+
+bool App::onMouseScroll(vxe::MouseScrolledEvent& e) {
+    m_camera->processMouseScroll(e.getYOffset());
+    return true;
+}
+
+bool App::onWindowClose(vxe::WindowCloseEvent& e) {
+    running = false;
+    return true;
+}
+
 
 vxe::Application* vxe::createApplication() {
     App* app = new App(800, 600, "test");

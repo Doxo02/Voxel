@@ -33,17 +33,19 @@ target_include_directories(imgui PUBLIC ${imgui_external_SOURCE_DIR})
 
 add_library(VoxelEngine 
     src/Engine/vxe/Application.cpp
-    src/Engine/vxe/Rendering/graphics/ogl/ogl_Shader.cpp
-    src/Engine/vxe/Rendering/graphics/ogl/ogl_VertexArray.cpp
-    src/Engine/vxe/Rendering/graphics/ogl/ogl_VertexBuffer.cpp
-    src/Engine/vxe/Rendering/graphics/ogl/ogl_IndexBuffer.cpp
-    src/Engine/vxe/Rendering/graphics/ogl/ogl_ShaderStorageBuffer.cpp
-    src/Engine/vxe/Rendering/graphics/ogl/ogl_RenderAPI.cpp
+    src/Engine/vxe/Platform/OpenGL/ogl_Shader.cpp
+    src/Engine/vxe/Platform/OpenGL/ogl_VertexArray.cpp
+    src/Engine/vxe/Platform/OpenGL/ogl_VertexBuffer.cpp
+    src/Engine/vxe/Platform/OpenGL/ogl_IndexBuffer.cpp
+    src/Engine/vxe/Platform/OpenGL/ogl_ShaderStorageBuffer.cpp
+    src/Engine/vxe/Platform/OpenGL/ogl_RenderAPI.cpp
     src/Engine/vxe/Rendering/graphics/Factories.cpp
     src/Engine/vxe/Rendering/Renderer.cpp
     src/Engine/vxe/Rendering/VoxelGrid.cpp
 	src/Engine/vxe/DataStructures/Grid.cpp
 	src/Engine/vxe/DataStructures/BrickMap.cpp
+    src/Engine/vxe/Core/Window.cpp
+    src/Engine/vxe/Platform/Linux/LinuxWindow.cpp
 )
 
 target_include_directories(VoxelEngine PUBLIC lib)
@@ -55,7 +57,6 @@ target_link_libraries(VoxelEngine PUBLIC
 )
 
 add_executable(VoxelApp
-    #src/main.cpp
     src/App.cpp
     src/Rendering/Camera.cpp)
 

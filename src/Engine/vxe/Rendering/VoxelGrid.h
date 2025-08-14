@@ -1,8 +1,8 @@
 #ifndef VOXELGRID_H
 #define VOXELGRID_H
 
+#include <memory>
 #include "Renderable.h"
-
 #include "../DataStructures/Grid.h"
 
 namespace vxe {
@@ -17,8 +17,8 @@ namespace vxe {
             Grid* getGrid() const;
 
         private:
-            VertexArray* m_vao;
-            Grid* m_grid;
+            std::unique_ptr<VertexArray> m_vao;
+            std::unique_ptr<Grid> m_grid;
     };
 }
 

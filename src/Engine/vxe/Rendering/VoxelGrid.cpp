@@ -8,7 +8,7 @@ vxe::VoxelGrid::VoxelGrid(const GridType type, const glm::ivec3 dimensions) {
 
 vxe::Grid* vxe::VoxelGrid::getGrid() const
 {
-    return m_grid;
+    return m_grid.get();
 }
 
 void vxe::VoxelGrid::bindVA() {
@@ -16,5 +16,5 @@ void vxe::VoxelGrid::bindVA() {
 }
 
 void vxe::VoxelGrid::draw(RenderAPI* api) {
-    api->drawVertexArray(m_vao, 3);
+    api->drawVertexArray(m_vao.get(), 3);
 }

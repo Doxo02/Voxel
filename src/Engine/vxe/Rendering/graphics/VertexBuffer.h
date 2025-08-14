@@ -2,6 +2,7 @@
 #define VERTEX_BUFFER_H
 
 #include <cstddef>
+#include <memory>
 
 namespace vxe {
     class VertexBuffer {
@@ -11,7 +12,7 @@ namespace vxe {
             virtual void bind() const = 0;
             virtual void unbind() const = 0;
 
-            static VertexBuffer* create(const void* data, size_t size);
+            static std::unique_ptr<VertexBuffer> create(const void* data, size_t size);
     };
 }
 

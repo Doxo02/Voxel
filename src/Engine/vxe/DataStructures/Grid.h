@@ -1,6 +1,8 @@
 #ifndef GRID_H
 #define GRID_H
 
+#include <cstddef>
+#include <memory>
 #include <glm/glm.hpp>
 
 namespace vxe {
@@ -35,7 +37,7 @@ namespace vxe {
             virtual size_t getSize() = 0;
             virtual size_t getSizeInBytes() = 0;
 
-            static Grid* create(const GridType& type, const glm::ivec3& dimensions);
+            static std::unique_ptr<Grid> create(const GridType& type, const glm::ivec3& dimensions);
     };
 }
 

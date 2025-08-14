@@ -1,7 +1,7 @@
 #ifndef OPENGL_SHADER_H
 #define OPENGL_SHADER_H
 
-#include "../Shader.h"
+#include "../../Rendering/graphics/Shader.h"
 
 #include <GL/glew.h>
 

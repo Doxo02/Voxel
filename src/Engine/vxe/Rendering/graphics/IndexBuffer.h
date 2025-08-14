@@ -2,6 +2,7 @@
 #define INDEX_BUFFER_H
 
 #include <cstddef>
+#include <memory>
 
 namespace vxe {
     class IndexBuffer {
@@ -11,7 +12,7 @@ namespace vxe {
             virtual void bind() const = 0;
             virtual void unbind() const = 0;
 
-            static IndexBuffer* create(unsigned int* indices, size_t count);
+            static std::unique_ptr<IndexBuffer> create(unsigned int* indices, size_t count);
     };
 }
 

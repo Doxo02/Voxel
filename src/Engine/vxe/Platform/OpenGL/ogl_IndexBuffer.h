@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <GL/glew.h>
 
-#include "../IndexBuffer.h"
+#include "../../Rendering/graphics/IndexBuffer.h"
 
 namespace vxe {
     class OGLIndexBuffer : public IndexBuffer {

@@ -5,42 +5,43 @@
 #include "VertexArray.h"
 #include "VertexBuffer.h"
 
+#include <memory>
 
-#include "ogl/ogl_IndexBuffer.h"
-#include "ogl/ogl_RenderAPI.h"
-#include "ogl/ogl_Shader.h"
-#include "ogl/ogl_ShaderStorageBuffer.h"
-#include "ogl/ogl_VertexArray.h"
-#include "ogl/ogl_VertexBuffer.h"
+#include "../../Platform/OpenGL/ogl_IndexBuffer.h"
+#include "../../Platform/OpenGL/ogl_RenderAPI.h"
+#include "../../Platform/OpenGL/ogl_Shader.h"
+#include "../../Platform/OpenGL/ogl_ShaderStorageBuffer.h"
+#include "../../Platform/OpenGL/ogl_VertexArray.h"
+#include "../../Platform/OpenGL/ogl_VertexBuffer.h"
 
 namespace vxe {
-    IndexBuffer* IndexBuffer::create(unsigned int* indices, size_t count) {
+    std::unique_ptr<IndexBuffer> IndexBuffer::create(unsigned int* indices, size_t count) {
         // TODO: add config to select the API
-        return new OGLIndexBuffer(indices, count);
+        return std::make_unique<OGLIndexBuffer>(indices, count);
     }
 
-    RenderAPI* RenderAPI::create() {
+    std::unique_ptr<RenderAPI> RenderAPI::create() {
         // TODO: add config to select the API
-        return new OGLRenderAPI();
+        return std::make_unique<OGLRenderAPI>();
     }
 
-    Shader* Shader::create() {
+    std::unique_ptr<Shader> Shader::create() {
         // TODO: add config to select the API
-        return new OGLShader();
+        return std::make_unique<OGLShader>();
     }
 
-    ShaderStorageBuffer* ShaderStorageBuffer::create(void *data, unsigned int size, unsigned int index) {
+    std::unique_ptr<ShaderStorageBuffer> ShaderStorageBuffer::create(void *data, unsigned int size, unsigned int index) {
         // TODO: add config to select the API
-        return new OGLShaderStorageBuffer(data, size, index);
+        return std::make_unique<OGLShaderStorageBuffer>(data, size, index);
     }
 
-    VertexArray* VertexArray::create() {
+    std::unique_ptr<VertexArray> VertexArray::create() {
         // TODO: add config to select the API
-        return new OGLVertexArray();
+        return std::make_unique<OGLVertexArray>();
     }
 
-    VertexBuffer* VertexBuffer::create(const void* data, size_t size) {
+    std::unique_ptr<VertexBuffer> VertexBuffer::create(const void* data, size_t size) {
         // TODO: add config to select the API
-        return new OGLVertexBuffer(data, size);
+        return std::make_unique<OGLVertexBuffer>(data, size);
     }
 }

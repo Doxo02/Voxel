@@ -1,8 +1,6 @@
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <memory>
 
 #include "Rendering/Camera.h"
 
@@ -15,26 +13,26 @@ class App : public vxe::Application {
         bool init();
         void terminate();
 
-        void run();
+        void run() override;
     
     private:
         int m_width, m_height;
         const char* m_title;
 
-        GLFWwindow* m_window;
+        std::unique_ptr<vxe::Window> m_window;
 
-        Camera* m_camera;
+        std::unique_ptr<Camera> m_camera;
         glm::mat4x4 m_projection;
 
-        vxe::Renderer* m_renderer;
+        std::unique_ptr<vxe::Renderer> m_renderer;
 
-        vxe::Shader* m_program;
+        std::unique_ptr<vxe::Shader> m_program;
 
-        vxe::ShaderStorageBuffer* m_brickMapSSBO;
-        vxe::ShaderStorageBuffer* m_brickSSBO;
-        vxe::ShaderStorageBuffer* m_materialSSBO;
-        vxe::ShaderStorageBuffer* m_materialInfosSSBO;
-        vxe::VoxelGrid* m_grid;
+        std::unique_ptr<vxe::ShaderStorageBuffer> m_brickMapSSBO;
+        std::unique_ptr<vxe::ShaderStorageBuffer> m_brickSSBO;
+        std::unique_ptr<vxe::ShaderStorageBuffer> m_materialSSBO;
+        std::unique_ptr<vxe::ShaderStorageBuffer> m_materialInfosSSBO;
+        std::unique_ptr<vxe::VoxelGrid> m_grid;
 
         bool viewportResized = false;
         float deltaTime = 0.0f;
@@ -44,8 +42,13 @@ class App : public vxe::Application {
         double lastY = 400;
         bool cursorEnabled = false;
 
-        static void onResize(GLFWwindow* window, int width, int height);
-        static void processInput(GLFWwindow* window);
-        static void mouseCallback(GLFWwindow* window, double xPos, double yPos);
-        static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+        bool running = true;
+
+        void processInput();
+        bool onResize(vxe::WindowResizeEvent& e);
+        bool onKeyPressed(vxe::KeyPressedEvent& e);
+        bool onKeyReleased(vxe::KeyReleasedEvent& e);
+        bool onMouseMove(vxe::MouseMovedEvent& e);
+        bool onMouseScroll(vxe::MouseScrolledEvent& e);
+        bool onWindowClose(vxe::WindowCloseEvent& e);
 };

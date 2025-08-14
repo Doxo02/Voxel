@@ -1,7 +1,7 @@
 #ifndef OPENGL_VERTEX_BUFFER_H
 #define OPENGL_VERTEX_BUFFER_H
 
-#include "../VertexBuffer.h"
+#include "../../Rendering/graphics/VertexBuffer.h"
 
 #include <GL/glew.h>
 

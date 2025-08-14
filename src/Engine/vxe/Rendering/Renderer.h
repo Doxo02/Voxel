@@ -2,6 +2,7 @@
 #define RENDERER_H
 
 #include <vector>
+#include <memory>
 
 #include "graphics/RenderAPI.h"
 #include "graphics/Shader.h"
@@ -15,7 +16,7 @@ namespace vxe {
             Renderer() = default;
             ~Renderer() = default;
             
-            void init();
+            void init(Window* window);
             
             void beginFrame();
             void submit(Renderable* object);
@@ -24,7 +25,8 @@ namespace vxe {
             RenderAPI* getAPI();
         private:
             std::vector<Renderable*> m_renderQueue;
-            RenderAPI* m_api;
+            std::unique_ptr<RenderAPI> m_api;
+            Window* m_window;
     };
 }
 

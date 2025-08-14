@@ -4,14 +4,15 @@
 
 #include "Grid.h"
 
+#include <memory>
 #include "BrickMap.h"
 
 namespace vxe
 {
-    Grid* Grid::create(const GridType& type, const glm::ivec3& dimensions) {
+    std::unique_ptr<Grid> Grid::create(const GridType& type, const glm::ivec3& dimensions) {
         switch (type) {
         case GridType::BRICK_MAP: {
-                return new BrickMap(dimensions);
+                return std::make_unique<BrickMap>(dimensions);
         } break;
         }
 

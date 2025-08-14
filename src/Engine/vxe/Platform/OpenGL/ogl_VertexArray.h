@@ -1,7 +1,7 @@
 #ifndef OPENGL_VERTEX_ARRAY_H
 #define OPENGL_VERTEX_ARRAY_H
 
-#include "../VertexArray.h"
+#include "../../Rendering/graphics/VertexArray.h"
 
 #include <GL/glew.h>
 #include <vector>

@@ -2,6 +2,7 @@
 #define SHADER_H
 
 #include <string>
+#include <memory>
 #include <glm/glm.hpp>
 
 namespace vxe {
@@ -27,7 +28,7 @@ namespace vxe {
             virtual void setUniform(const std::string& name, const glm::ivec3 value) = 0;
             virtual void setUniform(const std::string& name, const glm::mat4 value) = 0;
 
-            static Shader* create();
+            static std::unique_ptr<Shader> create();
     };
 }
 

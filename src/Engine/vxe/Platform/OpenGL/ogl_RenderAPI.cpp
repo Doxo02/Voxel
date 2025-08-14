@@ -3,7 +3,9 @@
 #include <GL/glew.h>
 #include <spdlog/spdlog.h>
 
-void vxe::OGLRenderAPI::init() {
+void vxe::OGLRenderAPI::init(Window* window) {
+    window->setOpenGLContext();
+
     if(glewInit() != GLEW_OK){
         // spdlog::critical("Failed to initialize GLEW!");
         throw std::runtime_error("Failed to initialize GLEW!");
@@ -33,4 +35,8 @@ void vxe::OGLRenderAPI::drawElements(const vxe::VertexArray* va, unsigned int co
 
 void vxe::OGLRenderAPI::setClearColor(const glm::vec4& color) {
     glClearColor(color.r, color.g, color.b, color.a);
+}
+
+void vxe::OGLRenderAPI::swapBuffer(Window* window) {
+    window->swapBuffer();
 }

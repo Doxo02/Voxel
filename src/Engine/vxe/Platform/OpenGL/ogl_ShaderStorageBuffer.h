@@ -1,7 +1,7 @@
 #ifndef OPENGL_SHADER_STORAGE_BUFFER
 #define OPENGL_SHADER_STORAGE_BUFFER
 
-#include "../ShaderStorageBuffer.h"
+#include "../../Rendering/graphics/ShaderStorageBuffer.h"
 
 #include <GL/glew.h>
 
