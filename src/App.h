@@ -6,11 +6,10 @@
 
 #include "Rendering/Camera.h"
 
-#include <vxe/Rendering/Renderer.h>
-#include <vxe/Rendering/VoxelGrid.h>
+#include <vxe.h>
 
 /// @brief The main App which contains most of the logic.
-class App {
+class App : public vxe::Application {
     public:
         App(int width, int height, const char* title);
         bool init();

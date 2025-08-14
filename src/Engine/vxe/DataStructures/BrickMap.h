@@ -7,6 +7,7 @@
 #include <array>
 
 #include <FastNoiseLite.h>
+#include <mutex>
 
 #include "Grid.h"
 

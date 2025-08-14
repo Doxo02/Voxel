@@ -274,3 +274,9 @@ void App::scrollCallback(GLFWwindow *window, double xoffset, double yoffset) {
     App* userPointer = (App*) glfwGetWindowUserPointer(window);
     userPointer->m_camera->processMouseScroll(yoffset);
 }
+
+vxe::Application* vxe::createApplication() {
+    App* app = new App(800, 600, "test");
+    app->init();
+    return app;
+}

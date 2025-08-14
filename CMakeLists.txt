@@ -32,6 +32,7 @@ add_library(imgui
 target_include_directories(imgui PUBLIC ${imgui_external_SOURCE_DIR})
 
 add_library(VoxelEngine 
+    src/Engine/vxe/Application.cpp
     src/Engine/vxe/Rendering/graphics/ogl/ogl_Shader.cpp
     src/Engine/vxe/Rendering/graphics/ogl/ogl_VertexArray.cpp
     src/Engine/vxe/Rendering/graphics/ogl/ogl_VertexBuffer.cpp
@@ -54,7 +55,7 @@ target_link_libraries(VoxelEngine PUBLIC
 )
 
 add_executable(VoxelApp
-    src/main.cpp
+    #src/main.cpp
     src/App.cpp
     src/Rendering/Camera.cpp)
 

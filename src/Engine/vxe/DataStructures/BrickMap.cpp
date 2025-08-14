@@ -1,7 +1,6 @@
 #include "BrickMap.h"
 
 #include <cstring>
-#include <mutex>
 
 vxe::BrickMap::BrickMap(const glm::ivec3 dim) : dimensions(dim), m_noise(0) {
     m_noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
