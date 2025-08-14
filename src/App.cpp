@@ -12,7 +12,9 @@
 #include "platform/rss.h"
 #include <FastNoiseLite.h>
 
-std::vector<MaterialInfo> materialInfos = {
+#include "vxe/DataStructures/BrickMap.h"
+
+std::vector<vxe::MaterialInfo> materialInfos = {
     { glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), 0.0f, 0.0f },     // AIR
     { glm::vec4(0.0f, 1.0f, 0.0f, 1.0f), 0.0f, 0.2f },     // GRASS
     { glm::vec4(0.5f, 0.5f, 0.5f, 1.0f), 0.2f, 0.7f }      // STONE
@@ -58,15 +60,10 @@ bool App::init() {
     glfwMakeContextCurrent(m_window);
     glfwSwapInterval(0);
 
-    if(glewInit() != GLEW_OK){
-        spdlog::critical("Failed to initialize GLEW!");
-        return false;
-    }
-    spdlog::info("Initialized GLEW.");
-
-    glEnable(GL_DEPTH_TEST);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glViewport(0, 0, m_width, m_height);
+    m_renderer = new vxe::Renderer();
+    m_renderer->init();
+    m_renderer->getAPI()->setClearColor(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+    m_renderer->getAPI()->setViewport(0, 0, m_width, m_height);
 
     // Init ImGui
     IMGUI_CHECKVERSION();
@@ -79,14 +76,18 @@ bool App::init() {
     spdlog::info("Initialized ImGui");
 
     std::filesystem::path shaderDir = std::filesystem::current_path() / "assets" / "shader";
-    m_program = new gla::Program((shaderDir / "raymarch.vert").string().c_str(), (shaderDir / "raymarch.frag").string().c_str(), true);
+    m_program = vxe::Shader::create();
+    m_program->vertex((shaderDir / "raymarch.vert").string());
+    m_program->fragment((shaderDir / "raymarch.frag").string());
+    m_program->compile();
     m_program->bind();
 
     m_camera = new Camera(glm::vec3(80.0f, 70.0f, 70.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
     m_projection = glm::perspective(glm::radians(m_camera->zoom), (float) m_width / (float) m_height, 0.1f, 100.0f);
 
     glm::ivec3 gridSize(64, 32, 64);
-    m_world = new World(gridSize);
+
+    m_grid = new vxe::VoxelGrid(vxe::GridType::BRICK_MAP, gridSize);
 
     spdlog::info("Starting to generate terrain...");
     
@@ -95,32 +96,31 @@ bool App::init() {
     for (int z = 0; z < gridSize.z; z++) {
         for (int y = 0; y < gridSize.y; y++) {
             for (int x = 0; x < gridSize.x; x++) {
-                m_world->generateBrick(glm::ivec3(x, y, z));
+                m_grid->getGrid()->generateChunk(glm::ivec3(x, y, z));
             }
         }
     }
 
     double took = glfwGetTime() - startTime;
 
-    spdlog::info("Finished terrain generation. (size: {:.2f} MiB) (time taken: {:.2f}s)", m_world->getMap().getSizeInBytes() / 1024.0 / 1024.0, took);
+    spdlog::info("Finished terrain generation. (size: {:.2f} MiB) (time taken: {:.2f}s)", m_grid->getGrid()->getSizeInBytes() / 1024.0 / 1024.0, took);
 
-    GPUBrickMap gpuBrickMap = m_world->getMap().getGPUMap();
+    vxe::GPUGrid gpuBrickMap = m_grid->getGrid()->getGPUGrid();
 
-    m_brickMapSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.indexData.data(), gpuBrickMap.indexData.size() * sizeof(uint32_t), 0);
-    m_brickSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.bricks.data(), gpuBrickMap.bricks.size() * sizeof(GPUBrick), 1);
-    m_materialSSBO = new gla::ShaderStorageBuffer(gpuBrickMap.materials.data(), gpuBrickMap.materials.size() * sizeof(uint32_t), 2);
-    m_materialInfosSSBO = new gla::ShaderStorageBuffer(materialInfos.data(), materialInfos.size() * sizeof(MaterialInfo), 3);
+    // m_grid->bindVA();
+    m_brickMapSSBO = vxe::ShaderStorageBuffer::create(gpuBrickMap.indexData.data(), gpuBrickMap.indexData.size() * sizeof(uint32_t), 0);
+    m_brickSSBO = vxe::ShaderStorageBuffer::create(gpuBrickMap.bricks.data(), gpuBrickMap.bricks.size() * sizeof(vxe::GPUBrick), 1);
+    m_materialSSBO = vxe::ShaderStorageBuffer::create(gpuBrickMap.materials.data(), gpuBrickMap.materials.size() * sizeof(uint32_t), 2);
+    m_materialInfosSSBO = vxe::ShaderStorageBuffer::create(materialInfos.data(), materialInfos.size() * sizeof(vxe::MaterialInfo), 3);
 
     glm::mat4 invVP = glm::inverse(m_projection * m_camera->getViewMatrix());
-    m_program->setUniformMat4f("invViewProj", glm::value_ptr(invVP));
-    m_program->setUniform3f("cameraPos", m_camera->position);
-    m_program->setUniform2f("resolution", m_width, m_height);
+    m_program->setUniform("invViewProj", invVP);
+    m_program->setUniform("cameraPos", m_camera->position);
+    m_program->setUniform("resolution", glm::vec2(m_width, m_height));
 
-    m_program->setUniform1ui("brickSize", BRICK_SIZE);
-    m_program->setUniform3i("gridSize", gridSize);
-    m_program->setUniform1f("voxelScale", 1.0f);
-
-    m_dummyVAO = new gla::VertexArray();
+    m_program->setUniform("brickSize", (unsigned int) BRICK_SIZE);
+    m_program->setUniform("gridSize", gridSize);
+    m_program->setUniform("voxelScale", 1.0f);
 
     return true;
 }
@@ -134,11 +134,12 @@ void App::terminate() {
     // Clean up dynamically allocated objects
     delete m_program;
     delete m_camera;
-    delete m_world;
     delete m_brickMapSSBO;
     delete m_brickSSBO;
     delete m_materialSSBO;
-    delete m_dummyVAO;
+    delete m_materialInfosSSBO;
+    delete m_grid;
+    delete m_renderer;
 
     // Destroy GLFW window and terminate
     glfwDestroyWindow(m_window);
@@ -173,40 +174,41 @@ void App::run() {
         ImGui::End();
 
         if (viewportResized) {
-            m_program->setUniform2f("resolution", m_width, m_height);
+            m_program->setUniform("resolution", glm::vec2(m_width, m_height));
             viewportResized = false;
         }
 
         glm::mat4 invVP = glm::inverse(m_projection * m_camera->getViewMatrix());
-        m_program->setUniform1f("time", glfwGetTime());
-        m_program->setUniformMat4f("invViewProj", glm::value_ptr(invVP));
-        m_program->setUniform3f("cameraPos", m_camera->position);
-        m_program->setUniform1f("voxelScale", voxelScale);
-        m_program->setUniform3f("lightPos", lightPos);
-        m_program->setUniform3f("lightColor", lightColor);
-        m_program->setUniform1f("lightIntensity", lightIntensity);
+        m_program->setUniform("time", (float) glfwGetTime());
+        m_program->setUniform("invViewProj", invVP);
+        m_program->setUniform("cameraPos", m_camera->position);
+        m_program->setUniform("voxelScale", voxelScale);
+        m_program->setUniform("lightPos", lightPos);
+        m_program->setUniform("lightColor", lightColor);
+        m_program->setUniform("lightIntensity", lightIntensity);
 
         processInput(m_window);
 
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        m_renderer->beginFrame();
 
-        GLenum error = glGetError();
-        if (error != GL_NO_ERROR) {
-            spdlog::error("OpenGL error: {}", error);
-        }
+        // GLenum error = glGetError();
+        // if (error != GL_NO_ERROR) {
+        //     spdlog::error("OpenGL error: {}", error);
+        // }
 
         m_program->bind();
-        m_dummyVAO->bind();
         m_brickMapSSBO->bindBase();
         m_brickSSBO->bindBase();
         m_materialSSBO->bindBase();
         m_materialInfosSSBO->bindBase();
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        m_renderer->submit(m_grid);
 
-        error = glGetError();
-        if (error != GL_NO_ERROR) {
-            spdlog::error("OpenGL error: {}", error);
-        }
+        // error = glGetError();
+        // if (error != GL_NO_ERROR) {
+        //     spdlog::error("OpenGL error: {}", error);
+        // }
+
+        m_renderer->endFrame();
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

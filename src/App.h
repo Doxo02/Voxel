@@ -6,12 +6,8 @@
 
 #include "Rendering/Camera.h"
 
-#include "DataStructures/BrickMap.h"
-#include "DataStructures/World.h"
-
-#include "GL_Abstract/Program.h"
-#include "GL_Abstract/ShaderStorageBuffer.h"
-#include "GL_Abstract/VertexArray.h"
+#include <vxe/Rendering/Renderer.h>
+#include <vxe/Rendering/VoxelGrid.h>
 
 /// @brief The main App which contains most of the logic.
 class App {
@@ -31,15 +27,15 @@ class App {
         Camera* m_camera;
         glm::mat4x4 m_projection;
 
-        gla::Program* m_program;
+        vxe::Renderer* m_renderer;
 
-        gla::ShaderStorageBuffer* m_brickMapSSBO;
-        gla::ShaderStorageBuffer* m_brickSSBO;
-        gla::ShaderStorageBuffer* m_materialSSBO;
-        gla::ShaderStorageBuffer* m_materialInfosSSBO;
-        gla::VertexArray* m_dummyVAO;
+        vxe::Shader* m_program;
 
-        World* m_world;
+        vxe::ShaderStorageBuffer* m_brickMapSSBO;
+        vxe::ShaderStorageBuffer* m_brickSSBO;
+        vxe::ShaderStorageBuffer* m_materialSSBO;
+        vxe::ShaderStorageBuffer* m_materialInfosSSBO;
+        vxe::VoxelGrid* m_grid;
 
         bool viewportResized = false;
         float deltaTime = 0.0f;

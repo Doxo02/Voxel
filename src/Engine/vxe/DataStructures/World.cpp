@@ -2,14 +2,16 @@
 
 #include <mutex>
 
-World::World(glm::ivec3 worldSize, int seed) : m_worldSize(worldSize), m_map(worldSize), m_seed(seed) {
+vxe::World::World(glm::ivec3 worldSize, int seed) : m_worldSize(worldSize), m_seed(seed) {
     m_noise = FastNoiseLite(m_seed);
     m_noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+
+    m_map = (BrickMap*) vxe::Grid::create(BRICK_MAP);
 }
 
-World::~World() {}
+vxe::World::~World() {}
 
-bool World::generateBrick(const glm::ivec3 &pos) {
+bool vxe::World::generateBrick(const glm::ivec3 &pos) {
     static std::mutex mtx;
     std::lock_guard<std::mutex> lock(mtx);
 
@@ -24,12 +26,12 @@ bool World::generateBrick(const glm::ivec3 &pos) {
             if (yTop < pos.y * BRICK_SIZE) continue;
 
             if (yTop < pos.y * BRICK_SIZE + BRICK_SIZE)
-                m_map.setVoxel(glm::ivec3(x + pos.x * BRICK_SIZE, yTop, z + pos.z * BRICK_SIZE), GRASS);
+                m_map->setVoxel(glm::ivec3(x + pos.x * BRICK_SIZE, yTop, z + pos.z * BRICK_SIZE), GRASS);
             
             int localYTop = std::min(yTop - pos.y * BRICK_SIZE, BRICK_SIZE);
 
             for (int y = 0; y < localYTop; y++) {
-                m_map.setVoxel(glm::ivec3(x + pos.x * BRICK_SIZE, y + pos.y * BRICK_SIZE, z + pos.z * BRICK_SIZE), STONE);
+                m_map->setVoxel(glm::ivec3(x + pos.x * BRICK_SIZE, y + pos.y * BRICK_SIZE, z + pos.z * BRICK_SIZE), STONE);
             }
         }
     }
@@ -37,6 +39,6 @@ bool World::generateBrick(const glm::ivec3 &pos) {
     return true;
 }
 
-BrickMap& World::getMap() {
+vxe::BrickMap* vxe::World::getMap() {
     return m_map;
 }

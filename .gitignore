@@ -1,3 +1,10 @@
+# common build dirs
 build/
+cmake-build-debug/
+cmake-build-release/
+
+# IDE dirs
 .vscode/
+.idea/
+
 imgui.ini
