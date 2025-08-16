@@ -15,7 +15,7 @@ namespace vxe {
             void bind() const override;
             void unbind() const override;
 
-            void addVertexBuffer(VertexBuffer* vertexBuffer) override;
+            void addVertexBuffer(VertexBuffer* vertexBuffer, VertexAttribLayout* layouts, size_t size) override;
             void setIndexBuffer(IndexBuffer* indexBuffer) override;
         
         private:

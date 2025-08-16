@@ -175,6 +175,8 @@ void App::run() {
         m_renderer->endFrame();
         m_window->onUpdate();
     }
+
+    terminate();
 }
 
 void App::processInput() {

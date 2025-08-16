@@ -21,9 +21,9 @@ namespace vxe {
         glBindVertexArray(0);
     }
 
-    void OGLVertexArray::addVertexBuffer(VertexBuffer* vertexBuffer) {
+    void OGLVertexArray::addVertexBuffer(VertexBuffer* vertexBuffer, VertexAttribLayout* layouts, size_t size) {
         glBindVertexArray(m_id);
-        // TODO: vertex attribute pointers
+        vertexBuffer->setLayout(layouts, size);
         m_vertexBuffers.push_back(vertexBuffer);
     }
 

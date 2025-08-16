@@ -14,7 +14,7 @@ namespace vxe
             virtual void bind() const = 0;
             virtual void unbind() const = 0;
 
-            virtual void addVertexBuffer(VertexBuffer* vertexBuffer) = 0;
+            virtual void addVertexBuffer(VertexBuffer* vertexBuffer, VertexAttribLayout* layouts, size_t size) = 0;
             virtual void setIndexBuffer(IndexBuffer* indexBuffer) = 0;
 
             static std::unique_ptr<VertexArray> create();

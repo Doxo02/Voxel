@@ -13,6 +13,7 @@ namespace vxe {
 
             void bind() const override;
             void unbind() const override;
+            void setLayout(VertexAttribLayout* layouts, size_t size) const override;
         
         private:
             GLuint m_id;
