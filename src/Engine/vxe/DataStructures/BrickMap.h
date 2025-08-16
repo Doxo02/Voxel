@@ -1,83 +1,80 @@
-#ifndef BRICKMAP_H
-#define BRICKMAP_H
-
-#include <vector>
-#include <unordered_map>
-#include <glm/glm.hpp>
-#include <array>
-
-#include <FastNoiseLite.h>
-#include <mutex>
+#ifndef VXE_BRICKMAP_H
+#define VXE_BRICKMAP_H
 
 #include "Grid.h"
 
-#define BRICK_SIZE 8
-#define VOXELS_PER_BRICK (BRICK_SIZE * BRICK_SIZE * BRICK_SIZE)
+#include "../Rendering/graphics/ShaderStorageBuffer.h"
 
-// TODO: extract Material stuff
+#include <FastNoiseLite.h>
+
+#include <vector>
+#include <mutex>
 
 namespace vxe {
-    /// @brief Individual Voxel struct for every Voxel for easy editing on the CPU. (might change to save storage space)
-    struct Voxel {
-        Material material;
-    };
+    static constexpr size_t BRICK_SIZE = 8;
+    static constexpr size_t VOXELS_PER_BRICK = BRICK_SIZE * BRICK_SIZE * BRICK_SIZE;
 
     struct Brick {
-        std::array<std::array<std::array<Voxel, BRICK_SIZE>, BRICK_SIZE>, BRICK_SIZE> voxels;
-        glm::ivec3 pos;
-    };
-
-    /// @brief The brick in the format that is sent to the GPU.
-    struct GPUBrick {
         uint64_t bitmask[VOXELS_PER_BRICK / 64];
         uint32_t materialOffset;
+
+        inline uint32_t getVoxelCount() {
+            uint32_t count = 0;
+            for (int i = 0; i < VOXELS_PER_BRICK / 64; i++) {
+                count += __builtin_popcountl(bitmask[i]);
+            }
+            return count;
+        }
     };
 
-    /// @brief holds all the voxel data that is sent to the GPU.
     struct GPUGrid {
-        std::vector<GPUBrick> bricks;
-        std::vector<uint32_t> indexData;
-        std::vector<uint32_t> materials;
+        uint8_t dummy;
     };
 
     class BrickMap : public Grid {
-        std::vector<Brick> bricks;
+        public:
+            BrickMap(const glm::ivec3& dimensions);
+            ~BrickMap();
 
-        glm::ivec3 dimensions;
+            void setVoxel(glm::ivec3 position, Material material) override;
+            void fillRegion(glm::ivec3 position, glm::ivec3 extents, Material material) override;
+            bool generateChunk(const glm::ivec3& pos) override;
 
-        FastNoiseLite m_noise;
+            void uploadToGPU() override;
+            GPUGrid getGPUGrid() override;
+            size_t getSize() override;
+            size_t getSizeInBytes() override;
+        
+        private:
+            glm::ivec3 m_dimensions;
+            std::vector<Brick> m_bricks;
+            std::vector<size_t> m_bricksByOffset;
+            std::vector<uint32_t> m_indexData;
+            std::vector<uint32_t> m_materialData;
 
-        struct hash_ivec3 {
-            size_t operator()(const glm::ivec3& v) const {
-                // 3 large prime numbers
-                const size_t h1 = std::hash<int>{}(v.x * 73856093);
-                const size_t h2 = std::hash<int>{}(v.y * 19349663);
-                const size_t h3 = std::hash<int>{}(v.z * 83492791);
-                return h1 ^ h2 ^ h3;
-            }
-        };
+            std::unique_ptr<ShaderStorageBuffer> m_bricksSSBO;
+            std::unique_ptr<ShaderStorageBuffer> m_indexDataSSBO;
+            std::unique_ptr<ShaderStorageBuffer> m_materialDataSSBO;
 
-        std::unordered_map<glm::ivec3, int, hash_ivec3> indexTable;
+            FastNoiseLite m_noise;
+            mutable std::mutex m_chunkGenMutex;
 
-        mutable std::mutex m_chunkGenMutex;
+            bool m_offsetsNeedRebuild = false;
 
-    public:
-        explicit BrickMap(glm::ivec3 dim);
-        ~BrickMap() override = default ;
-        Brick& getBrick(glm::ivec3 pos);
+            void ensureOffsetsValid();
+            void markOffsetsInvalid() { m_offsetsNeedRebuild = true; }
 
-        void fillBrick(glm::ivec3 pos, Material material);
-        void setBrick(glm::ivec3 pos, const Brick& brick);
-        void setVoxel(glm::ivec3 pos, Material material) override;
-        void fillRegion(glm::ivec3 position, glm::ivec3 extents, Material material) override;
-        bool generateChunk(const glm::ivec3& pos) override;
+            void insertBrickInSortedOrder(size_t brickIndex);
+            void removeBrickFromSortedOrder(size_t brickIndex);
+            void rebuildMaterialOfssets();
 
-        std::vector<Brick>& getBricks();
-        GPUGrid getGPUGrid() override;
+            int setVoxelPrivate(glm::ivec3 position, Material material);
 
-        size_t getSize() override;
-        size_t getSizeInBytes() override;
+            bool brickExists(glm::ivec3 brickPos);
+            Brick& getBrick(glm::ivec3 brickPos);
+            Brick& createBrick(glm::ivec3 brickPos);
+            void updateMaterialOffset(uint32_t insertionPoint);
     };
 }
 
-#endif // BRICKMAP_H
+#endif

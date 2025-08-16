@@ -35,6 +35,7 @@ namespace vxe {
 
     void LinuxWindow::init() {
         glfwSetWindowUserPointer(m_window, &m_data);
+        glfwSwapInterval(0);
 
         glfwSetWindowSizeCallback(m_window, [](GLFWwindow* window, int width, int height) {
             WindowData& data = *(WindowData*) glfwGetWindowUserPointer(window);

@@ -7,6 +7,7 @@
 #include "KeyEvent.h"
 #include "MouseEvent.h"
 #include "WindowEvent.h"
+#include "VoxelGridEvent.h"
 #include "EventManager.h"
 
 #endif // VXE_EVENTS_H

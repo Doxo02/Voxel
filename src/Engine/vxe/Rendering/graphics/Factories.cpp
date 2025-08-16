@@ -30,9 +30,9 @@ namespace vxe {
         return std::make_unique<OGLShader>();
     }
 
-    std::unique_ptr<ShaderStorageBuffer> ShaderStorageBuffer::create(void *data, unsigned int size, unsigned int index) {
+    std::unique_ptr<ShaderStorageBuffer> ShaderStorageBuffer::create(unsigned int index) {
         // TODO: add config to select the API
-        return std::make_unique<OGLShaderStorageBuffer>(data, size, index);
+        return std::make_unique<OGLShaderStorageBuffer>(index);
     }
 
     std::unique_ptr<VertexArray> VertexArray::create() {

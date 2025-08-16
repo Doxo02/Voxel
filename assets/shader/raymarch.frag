@@ -49,7 +49,7 @@ layout(std430, binding = 2) buffer MaterialBuffer {
     uint materials[];
 };
 
-layout(std430, binding = 3) buffer MateriInfosBuffer {
+layout(std430, binding = 3) buffer MaterialInfosBuffer {
     MaterialInfo materialInfos[];
 };
 

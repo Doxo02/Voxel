@@ -33,6 +33,7 @@ namespace vxe {
             virtual void fillRegion(glm::ivec3 position, glm::ivec3 extents, Material material) = 0;
             virtual bool generateChunk(const glm::ivec3& pos) = 0;
 
+            virtual void uploadToGPU() = 0;
             virtual GPUGrid getGPUGrid() = 0;
             virtual size_t getSize() = 0;
             virtual size_t getSizeInBytes() = 0;

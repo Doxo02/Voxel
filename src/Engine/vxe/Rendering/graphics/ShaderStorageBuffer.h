@@ -11,8 +11,9 @@ namespace vxe {
             virtual void bind() const = 0;
             virtual void bindBase() const = 0;
             virtual void unbind() const = 0;
+            virtual void setData(void* data, unsigned int size) = 0;
 
-            static std::unique_ptr<ShaderStorageBuffer> create(void *data, unsigned int size, unsigned int index);
+            static std::unique_ptr<ShaderStorageBuffer> create(unsigned int index);
     };
 }
 

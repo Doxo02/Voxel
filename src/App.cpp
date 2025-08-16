@@ -13,7 +13,7 @@
 #include <FastNoiseLite.h>
 #include <GLFW/glfw3.h>
 
-#include "vxe/DataStructures/BrickMap.h"
+// #include "vxe/DataStructures/BrickMap.h"
 
 std::vector<vxe::MaterialInfo> materialInfos = {
     { glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), 0.0f, 0.0f },     // AIR
@@ -81,20 +81,16 @@ bool App::init() {
 
     spdlog::info("Finished terrain generation. (size: {:.2f} MiB) (time taken: {:.2f}s)", m_grid->getGrid()->getSizeInBytes() / 1024.0 / 1024.0, took);
 
-    vxe::GPUGrid gpuBrickMap = m_grid->getGrid()->getGPUGrid();
-
-    // m_grid->bindVA();
-    m_brickMapSSBO = vxe::ShaderStorageBuffer::create(gpuBrickMap.indexData.data(), gpuBrickMap.indexData.size() * sizeof(uint32_t), 0);
-    m_brickSSBO = vxe::ShaderStorageBuffer::create(gpuBrickMap.bricks.data(), gpuBrickMap.bricks.size() * sizeof(vxe::GPUBrick), 1);
-    m_materialSSBO = vxe::ShaderStorageBuffer::create(gpuBrickMap.materials.data(), gpuBrickMap.materials.size() * sizeof(uint32_t), 2);
-    m_materialInfosSSBO = vxe::ShaderStorageBuffer::create(materialInfos.data(), materialInfos.size() * sizeof(vxe::MaterialInfo), 3);
+    m_grid->getGrid()->uploadToGPU();
+    m_materialInfosSSBO = vxe::ShaderStorageBuffer::create(3);
+    m_materialInfosSSBO->setData(materialInfos.data(), materialInfos.size() * sizeof(vxe::MaterialInfo));
 
     glm::mat4 invVP = glm::inverse(m_projection * m_camera->getViewMatrix());
     m_program->setUniform("invViewProj", invVP);
     m_program->setUniform("cameraPos", m_camera->position);
     m_program->setUniform("resolution", glm::vec2(m_width, m_height));
 
-    m_program->setUniform("brickSize", (unsigned int) BRICK_SIZE);
+    m_program->setUniform("brickSize", (unsigned int) 8);
     m_program->setUniform("gridSize", gridSize);
     m_program->setUniform("voxelScale", 1.0f);
 
@@ -162,9 +158,9 @@ void App::run() {
         // }
 
         m_program->bind();
-        m_brickMapSSBO->bindBase();
-        m_brickSSBO->bindBase();
-        m_materialSSBO->bindBase();
+        // m_brickMapSSBO->bindBase();
+        // m_brickSSBO->bindBase();
+        // m_materialSSBO->bindBase();
         m_materialInfosSSBO->bindBase();
         m_renderer->submit(m_grid.get());
 

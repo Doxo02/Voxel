@@ -14,7 +14,9 @@ namespace vxe {
         WindowClose, WindowResize, WindowFocus, WindowLostFocus, WindowMoved,
         // Input Events
         KeyPressed, KeyReleased, KeyTyped,
-        MouseButtonPressed, MouseButtonReleased, MouseMoved, MouseScrolled
+        MouseButtonPressed, MouseButtonReleased, MouseMoved, MouseScrolled,
+        // Voxel Grid Events
+        GridChanged
     };
 
     enum EventCategory {
@@ -24,7 +26,8 @@ namespace vxe {
         EventCategoryKeyboard       = 1 << 2,
         EventCategoryMouse          = 1 << 3,
         EventCategoryMouseButton    = 1 << 4,
-        EventCategoryWindow         = 1 << 5
+        EventCategoryWindow         = 1 << 5,
+        EventCategoryVoxelGrid      = 1 << 6
     };
 
     // Base Event class

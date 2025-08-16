@@ -28,9 +28,9 @@ class App : public vxe::Application {
 
         std::unique_ptr<vxe::Shader> m_program;
 
-        std::unique_ptr<vxe::ShaderStorageBuffer> m_brickMapSSBO;
-        std::unique_ptr<vxe::ShaderStorageBuffer> m_brickSSBO;
-        std::unique_ptr<vxe::ShaderStorageBuffer> m_materialSSBO;
+        // std::unique_ptr<vxe::ShaderStorageBuffer> m_brickMapSSBO;
+        // std::unique_ptr<vxe::ShaderStorageBuffer> m_brickSSBO;
+        // std::unique_ptr<vxe::ShaderStorageBuffer> m_materialSSBO;
         std::unique_ptr<vxe::ShaderStorageBuffer> m_materialInfosSSBO;
         std::unique_ptr<vxe::VoxelGrid> m_grid;
 

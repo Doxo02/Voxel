@@ -1,10 +1,7 @@
 #include "ogl_ShaderStorageBuffer.h"
 
-vxe::OGLShaderStorageBuffer::OGLShaderStorageBuffer(void *data, unsigned int size, unsigned int index) {
+vxe::OGLShaderStorageBuffer::OGLShaderStorageBuffer(unsigned int index) {
     glGenBuffers(1, &m_id);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_id);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, index, m_id);
     m_index = index;
 }
 
@@ -22,4 +19,11 @@ void vxe::OGLShaderStorageBuffer::bindBase() const {
 
 void vxe::OGLShaderStorageBuffer::unbind() const {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void vxe::OGLShaderStorageBuffer::setData(void *data, unsigned int size) {
+    bind();
+    glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, m_index, m_id);
+    bindBase();
 }

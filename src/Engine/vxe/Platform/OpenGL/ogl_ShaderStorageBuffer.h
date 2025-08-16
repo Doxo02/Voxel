@@ -8,7 +8,7 @@
 namespace vxe {
     class OGLShaderStorageBuffer : public ShaderStorageBuffer {
         public:
-            OGLShaderStorageBuffer(void *data, unsigned int size, unsigned int index);
+            OGLShaderStorageBuffer(unsigned int index);
             ~OGLShaderStorageBuffer();
 
             OGLShaderStorageBuffer(const OGLShaderStorageBuffer&) = delete;
@@ -17,6 +17,7 @@ namespace vxe {
             void bind() const override;
             void bindBase() const override;
             void unbind() const override;
+            void setData(void* data, unsigned int size) override;
         private:
             GLuint m_id, m_index;
     };
