@@ -60,19 +60,52 @@ struct HitInfo {
     bool hit;
     vec3 position;
     ivec3 voxelPos;
+    vec3 normal; // surface normal at hit
 };
 
 bool intersectAABB(vec3 ro, vec3 rd, vec3 boxMin, vec3 boxMax, out float tEnter, out float tExit) {
-    vec3 tMin = (boxMin - ro) / rd;
-    vec3 tMax = (boxMax - ro) / rd;
+    const float INF = 1e30;
+    const float EPS = 1e-12;
 
-    vec3 t1 = min(tMin, tMax);
-    vec3 t2 = max(tMin, tMax);
+    vec3 t1, t2;
 
-    tEnter = max(max(t1.x, t1.y), t1.z);
-    tExit  = min(min(t2.x, t2.y), t2.z);
+    // X axis
+    if (abs(rd.x) > EPS) {
+        float inv = 1.0 / rd.x;
+        t1.x = (boxMin.x - ro.x) * inv;
+        t2.x = (boxMax.x - ro.x) * inv;
+    } else {
+        if (ro.x < boxMin.x || ro.x > boxMax.x) return false; // Parallel and outside slab
+        t1.x = -INF; t2.x = INF; // Parallel and inside slab
+    }
 
-    return tExit >= max(tEnter, 0.0); // ray hits box and tExit is ahead of start
+    // Y axis
+    if (abs(rd.y) > EPS) {
+        float inv = 1.0 / rd.y;
+        t1.y = (boxMin.y - ro.y) * inv;
+        t2.y = (boxMax.y - ro.y) * inv;
+    } else {
+        if (ro.y < boxMin.y || ro.y > boxMax.y) return false;
+        t1.y = -INF; t2.y = INF;
+    }
+
+    // Z axis
+    if (abs(rd.z) > EPS) {
+        float inv = 1.0 / rd.z;
+        t1.z = (boxMin.z - ro.z) * inv;
+        t2.z = (boxMax.z - ro.z) * inv;
+    } else {
+        if (ro.z < boxMin.z || ro.z > boxMax.z) return false;
+        t1.z = -INF; t2.z = INF;
+    }
+
+    vec3 tMin = min(t1, t2);
+    vec3 tMax = max(t1, t2);
+
+    tEnter = max(max(tMin.x, tMin.y), tMin.z);
+    tExit  = min(min(tMax.x, tMax.y), tMax.z);
+
+    return tExit >= max(tEnter, 0.0);
 }
 
 uint getVoxelIndex(ivec3 localPos) {
@@ -187,15 +220,42 @@ HitInfo traceBrick(vec3 ro, vec3 rd, vec3 originalRo, uint brickIndex, float tot
     ivec3 voxel = ivec3(floor(ro));
     ivec3 stp = ivec3(sign(rd));
 
-    const float epsilon = 1e-6;
-    vec3 safeRd = rd;
-    if (abs(safeRd.x) < epsilon) safeRd.x = epsilon;
-    if (abs(safeRd.y) < epsilon) safeRd.y = epsilon;
-    if (abs(safeRd.z) < epsilon) safeRd.z = epsilon;
+    const float BIG = 1e30;
 
-    vec3 deltaDist = 1.0 / safeRd;
-    vec3 tMax = ((vec3(voxel) - ro) + 0.5 + vec3(stp) * 0.5) * deltaDist;
-    deltaDist = abs(deltaDist);
+    // Standard Amanatides & Woo tMax/tDelta in world-distance units
+    vec3 tMax;
+    vec3 tDelta;
+
+    // X
+    if (stp.x > 0) {
+        tMax.x = (float(voxel.x) + 1.0 - ro.x) / rd.x;
+        tDelta.x = 1.0 / rd.x;
+    } else if (stp.x < 0) {
+        tMax.x = (ro.x - float(voxel.x)) / (-rd.x);
+        tDelta.x = 1.0 / (-rd.x);
+    } else {
+        tMax.x = BIG; tDelta.x = BIG;
+    }
+    // Y
+    if (stp.y > 0) {
+        tMax.y = (float(voxel.y) + 1.0 - ro.y) / rd.y;
+        tDelta.y = 1.0 / rd.y;
+    } else if (stp.y < 0) {
+        tMax.y = (ro.y - float(voxel.y)) / (-rd.y);
+        tDelta.y = 1.0 / (-rd.y);
+    } else {
+        tMax.y = BIG; tDelta.y = BIG;
+    }
+    // Z
+    if (stp.z > 0) {
+        tMax.z = (float(voxel.z) + 1.0 - ro.z) / rd.z;
+        tDelta.z = 1.0 / rd.z;
+    } else if (stp.z < 0) {
+        tMax.z = (ro.z - float(voxel.z)) / (-rd.z);
+        tDelta.z = 1.0 / (-rd.z);
+    } else {
+        tMax.z = BIG; tDelta.z = BIG;
+    }
 
     float thisTotalDist = totalDist;
 
@@ -210,108 +270,99 @@ HitInfo traceBrick(vec3 ro, vec3 rd, vec3 originalRo, uint brickIndex, float tot
         uint voxelIndex = getVoxelIndex(voxel);
 
         if (isVoxelSolid(brickIndex, voxelIndex)) {
-            // Calculate the exact intersection with the voxel boundaries
+            // Exact boundary hit and normal
             vec3 voxelMin = vec3(voxel);
             vec3 voxelMax = vec3(voxel) + 1.0;
-            
-            // Find intersection with voxel faces
-            vec3 t1 = (voxelMin - ro) / safeRd;
-            vec3 t2 = (voxelMax - ro) / safeRd;
-            vec3 tNear = min(t1, t2);
-            vec3 tFar = max(t1, t2);
-            
-            float tEntry = max(max(tNear.x, tNear.y), tNear.z);
-            
-            // Convert brick-local hit position to world coordinates with voxel scaling
-            vec3 brickLocalHit = ro + safeRd * tEntry;
+
+            float tEntryX = rd.x != 0.0 ? ((stp.x > 0 ? voxelMin.x : voxelMax.x) - ro.x) / rd.x : -1e30;
+            float tEntryY = rd.y != 0.0 ? ((stp.y > 0 ? voxelMin.y : voxelMax.y) - ro.y) / rd.y : -1e30;
+            float tEntryZ = rd.z != 0.0 ? ((stp.z > 0 ? voxelMin.z : voxelMax.z) - ro.z) / rd.z : -1e30;
+            float tEntry = max(tEntryX, max(tEntryY, tEntryZ));
+
+            vec3 n = vec3(0.0);
+            if (tEntry == tEntryX) n = vec3(-sign(rd.x), 0.0, 0.0);
+            else if (tEntry == tEntryY) n = vec3(0.0, -sign(rd.y), 0.0);
+            else n = vec3(0.0, 0.0, -sign(rd.z));
+
+            vec3 brickLocalHit = ro + rd * tEntry;
             vec3 worldHitPos = vec3(brickPos) * float(BRICK_SIZE) * voxelScale + brickLocalHit * voxelScale;
             
-            return HitInfo(true, worldHitPos, voxel + brickPos * BRICK_SIZE);
+            return HitInfo(true, worldHitPos, voxel + brickPos * BRICK_SIZE, n);
         }
 
         ivec3 oldVoxel = voxel;
-        
-        if (tMax.x < tMax.y && tMax.x < tMax.z) {
-            voxel.x += stp.x;
-            tMax.x += deltaDist.x;
-            thisTotalDist = totalDist + tMax.x;
-        } else if (tMax.y < tMax.z) {
-            voxel.y += stp.y;
-            tMax.y += deltaDist.y;
-            thisTotalDist = totalDist + tMax.y;
-        } else {
-            voxel.z += stp.z;
-            tMax.z += deltaDist.z;
-            thisTotalDist = totalDist + tMax.z;
-        }
 
-        if (voxel == oldVoxel) {
-            break; // Stuck in same voxel, exit
-        }
+        float minT = min(tMax.x, min(tMax.y, tMax.z));
+        bvec3 stepAxes = lessThanEqual(tMax, vec3(minT + 1e-6));
+        if (stepAxes.x) { voxel.x += stp.x; tMax.x += tDelta.x; }
+        if (stepAxes.y) { voxel.y += stp.y; tMax.y += tDelta.y; }
+        if (stepAxes.z) { voxel.z += stp.z; tMax.z += tDelta.z; }
+        thisTotalDist = totalDist + minT;
+
+        if (voxel == oldVoxel) break;
     }
     
-    return HitInfo(false, vec3(0), ivec3(0));
+    return HitInfo(false, vec3(0), ivec3(0), vec3(0));
 }
 
 HitInfo traceWorld(vec3 ro, vec3 rd, float maxDist) {
-    const float epsilon = 1e-6;
-    if (abs(rd.x) < epsilon) rd.x = rd.x >= 0.0 ? epsilon : -epsilon;
-    if (abs(rd.y) < epsilon) rd.y = rd.y >= 0.0 ? epsilon : -epsilon;  
-    if (abs(rd.z) < epsilon) rd.z = rd.z >= 0.0 ? epsilon : -epsilon;
-
     ivec3 brick = ivec3(floor(ro));
     ivec3 stp = ivec3(sign(rd));
-    vec3 deltaDist = 1.0 / rd;
-    vec3 tMax = ((vec3(brick) - ro) + 0.5 + vec3(stp) * 0.5) * deltaDist;
-    deltaDist = abs(deltaDist);
+
+    const float BIG = 1e30;
+
+    // Standard Amanatides & Woo for bricks
+    vec3 tMax;
+    vec3 tDelta;
+
+    if (stp.x > 0) { tMax.x = (float(brick.x) + 1.0 - ro.x) / rd.x; tDelta.x = 1.0 / rd.x; }
+    else if (stp.x < 0) { tMax.x = (ro.x - float(brick.x)) / (-rd.x); tDelta.x = 1.0 / (-rd.x); }
+    else { tMax.x = BIG; tDelta.x = BIG; }
+
+    if (stp.y > 0) { tMax.y = (float(brick.y) + 1.0 - ro.y) / rd.y; tDelta.y = 1.0 / rd.y; }
+    else if (stp.y < 0) { tMax.y = (ro.y - float(brick.y)) / (-rd.y); tDelta.y = 1.0 / (-rd.y); }
+    else { tMax.y = BIG; tDelta.y = BIG; }
+
+    if (stp.z > 0) { tMax.z = (float(brick.z) + 1.0 - ro.z) / rd.z; tDelta.z = 1.0 / rd.z; }
+    else if (stp.z < 0) { tMax.z = (ro.z - float(brick.z)) / (-rd.z); tDelta.z = 1.0 / (-rd.z); }
+    else { tMax.z = BIG; tDelta.z = BIG; }
     
     float totalDist = 0.0;
     for (int i = 0; i < MAX_STEPS; i++) {
         uint brickIndex = getBrickIndex(brick);
-
-        if ((any(lessThan(brick, ivec3(0))) || any(greaterThan(brick, gridSize)))) break;
-
-        if (totalDist * float(BRICK_SIZE) >= maxDist) break;
+        if ((any(lessThan(brick, ivec3(0))) || any(greaterThanEqual(brick, gridSize)))) break;
+        if (totalDist >= maxDist) break;
 
         if (brickIndex != 0xFFFFFFFFu) {
-            vec3 mini = ((vec3(brick) - ro) + 0.5 - 0.5 * vec3(stp)) * (1.0 / rd);
-            float d = max(mini.x, max(mini.y, mini.z));
-            vec3 intersect = ro + rd * d;
-            vec3 uv3d = intersect - vec3(brick);
+            // Robust brick entry via AABB
+            float bEnter, bExit;
+            vec3 bMin = vec3(brick);
+            vec3 bMax = bMin + 1.0;
+            if (intersectAABB(ro, rd, bMin, bMax, bEnter, bExit)) {
+                float tStart = max(bEnter, 0.0);
+                vec3 hitPos = ro + rd * tStart;
+                vec3 uv3d = hitPos - bMin; // [0,1]
+                uv3d = clamp(uv3d, vec3(1e-6), vec3(1.0) - vec3(1e-6));
 
-            if (brick == ivec3(floor(ro))) // Handle edge case where camera origin is inside of block
-                uv3d = ro - vec3(brick);
-
-            uv3d = clamp(uv3d, vec3(1e-6), vec3(1.0 - 1e-6));
-
-            HitInfo hit = traceBrick(uv3d * float(BRICK_SIZE), rd, ro, brickIndex, totalDist * float(BRICK_SIZE), brick, maxDist);
-
-            if (hit.hit)
-                return hit;
+                vec3 rdVoxel = rd * float(BRICK_SIZE);
+                HitInfo hit = traceBrick(uv3d * float(BRICK_SIZE), rdVoxel, ro, brickIndex, totalDist, brick, maxDist);
+                if (hit.hit) return hit;
+            }
         }
 
+        // Advance to next brick face; step across all tied axes
         vec3 oldTMax = tMax;
+        float minT = min(tMax.x, min(tMax.y, tMax.z));
+        bvec3 doStep = lessThanEqual(tMax, vec3(minT + 1e-6));
+        if (doStep.x) { brick.x += stp.x; tMax.x += tDelta.x; }
+        if (doStep.y) { brick.y += stp.y; tMax.y += tDelta.y; }
+        if (doStep.z) { brick.z += stp.z; tMax.z += tDelta.z; }
+        totalDist = minT;
 
-        if (tMax.x < tMax.y && tMax.x < tMax.z) {
-            brick.x += stp.x;
-            tMax.x += deltaDist.x;
-            totalDist = tMax.x;
-        } else if (tMax.y < tMax.z) {
-            brick.y += stp.y;
-            tMax.y += deltaDist.y;
-            totalDist = tMax.y;
-        } else {
-            brick.z += stp.z;
-            tMax.z += deltaDist.z;
-            totalDist = tMax.z;
-        }
-
-        if (length(tMax - oldTMax) < 1e-6) {
-            break; // Not making progress, exit
-        }
+        if (all(equal(tMax, oldTMax))) break;
     }
     
-    return HitInfo(false, vec3(0), ivec3(0));
+    return HitInfo(false, vec3(0), ivec3(0), vec3(0));
 }
 
 void main() {
@@ -321,98 +372,89 @@ void main() {
     vec4 rayStartH = invViewProj * vec4(ndc, 0.0, 1.0);
     vec4 rayEndH   = invViewProj * vec4(ndc, 1.0, 1.0);
 
-    vec3 ro = cameraPos;
-    vec3 rd = normalize((rayEndH.xyz / max(rayEndH.w, 1e-6)) - (rayStartH.xyz / max(rayStartH.w, 1e-6)));
-
-    // Early discard for rays going in bad directions
-    if (abs(rd.x) < 0.001 && abs(rd.y) < 0.001 && abs(rd.z) < 0.001) {
-        outColor = background;
-        return;
-    }
+    // World-space origin and direction
+    vec3 roW = cameraPos;
+    vec3 rdW = normalize((rayEndH.xyz / max(rayEndH.w, 1e-6)) - (rayStartH.xyz / max(rayStartH.w, 1e-6)));
 
     float tEnter, tExit;
     HitInfo hit;
 
     vec3 epsilonVec = vec3(1e-3);
     vec3 worldSize = vec3(gridSize) * float(BRICK_SIZE) * voxelScale;
-    if (!intersectAABB(ro, rd, epsilonVec, worldSize - epsilonVec, tEnter, tExit)) {
-        hit = HitInfo(false, vec3(0), ivec3(0));
-    } else {
-        ro += rd * max(tEnter, 0.0);
-        float maxDist = tEnter > 0.0 ? tExit - tEnter : tExit;
-        hit = traceWorld(ro / (float(BRICK_SIZE) * voxelScale), rd, MAX_DIST);
+    if (!intersectAABB(roW, rdW, epsilonVec, worldSize - epsilonVec, tEnter, tExit)) {
+        discard;
+        return;
     }
+
+    roW += rdW * max(tEnter, 0.0);
+    float maxDistW = tEnter > 0.0 ? tExit - tEnter : tExit;
+
+    // Convert to brick space for traversal (bricks per world unit)
+    vec3 roB = roW * voxelScale / float(BRICK_SIZE);
+    vec3 rdB = rdW * voxelScale / float(BRICK_SIZE);
+
+    hit = traceWorld(roB, rdB, maxDistW);
 
     if (hit.hit) {
         vec3 lightDir = normalize(lightPos - hit.position);
-        vec3 normal = estimateNormal(hit.voxelPos);
+        vec3 normal = normalize(hit.normal);
+        // vec3 normal = estimateNormal(hit.voxelPos);
 
-        // Aggressive shadow optimization - skip shadows for distant hits
+        // Shadows (optional). Keep modest bias; this is not trying to hide seams.
         bool inShadow = false;
         float distToCamera = length(hit.position - cameraPos);
-        
-        if (distToCamera < 300.0) { // Only compute shadows for nearby objects
-            float dynamicBias = max(2.0 * voxelScale, 0.01 * distToCamera);
-            vec3 shadowRo = hit.position + lightDir * dynamicBias;
-            float maxShadowDist = length(lightPos - hit.position); // Use full distance to light
-            
-            HitInfo shadowHit = traceWorld(shadowRo / (float(BRICK_SIZE) * voxelScale), lightDir, maxShadowDist);
-            inShadow = shadowHit.hit;
+        if (distToCamera < 300.0) {
+            float biasN = max(0.5 * voxelScale, 0.01 * distToCamera);
+            float biasL = 0.5 * voxelScale;
+            vec3 shadowRoW = hit.position + normal * biasN + lightDir * biasL;
+            float maxShadowDistW = length(lightPos - hit.position);
+            vec3 shadowRoB = shadowRoW * voxelScale / float(BRICK_SIZE);
+            vec3 lightDirB = lightDir * voxelScale / float(BRICK_SIZE);
+            HitInfo sh = traceWorld(shadowRoB, lightDirB, maxShadowDistW);
+            inShadow = sh.hit;
         }
 
-        // Fetch material properties
-        uint brickIndex = getBrickIndex(ivec3(floor(hit.voxelPos / BRICK_SIZE)));
-        uint voxelIndex = getVoxelIndex(hit.voxelPos % BRICK_SIZE);
-        MaterialInfo mat = materialInfos[materials[getMaterialIndex(brickIndex, voxelIndex)]];
+        if (distToCamera > 100.0) normal = estimateNormal(hit.voxelPos);
+
+        // Material
+        ivec3 hitBrick = hit.voxelPos / BRICK_SIZE;
+        ivec3 localVoxel = hit.voxelPos % BRICK_SIZE;
+        uint brickIndex = getBrickIndex(hitBrick);
+        uint voxelIndex = getVoxelIndex(localVoxel);
+        MaterialInfo mat = materialInfos[int(materials[getMaterialIndex(brickIndex, voxelIndex)])];
         vec4 baseColor = mat.albedo;
 
-        // PBR lighting calculations with LOD
-        vec3 V = normalize(cameraPos - hit.position); // View direction
-        vec3 H = normalize(lightDir + V); // Halfway vector
-        
+        // PBR lighting
+        vec3 V = normalize(cameraPos - hit.position);
+        vec3 H = normalize(lightDir + V);
         float NdotL = max(dot(normal, lightDir), 0.0);
         float NdotV = max(dot(normal, V), 0.0);
         float HdotV = max(dot(H, V), 0.0);
-        
-        // Calculate base reflectance (F0)
         vec3 F0 = mix(vec3(0.04), baseColor.rgb, mat.metallic);
-        
-        // Simplified PBR for distant objects
+
         vec3 specular = vec3(0.0);
         if (distToCamera < 400.0) {
-            // Cook-Torrance BRDF
             float NDF = distributionGGX(normal, H, mat.roughness);
             float G = geometrySmith(normal, V, lightDir, mat.roughness);
             vec3 F = fresnelSchlick(HdotV, F0);
-            
             vec3 numerator = NDF * G * F;
             float denominator = 4.0 * NdotV * NdotL + 0.0001;
             specular = numerator / denominator;
         } else {
-            // Simplified specular for distant objects
             specular = F0 * pow(max(dot(normal, H), 0.0), 16.0);
         }
-        
-        vec3 kS = specular; // Specular contribution
-        vec3 kD = vec3(1.0) - kS; // Diffuse contribution
-        kD *= 1.0 - mat.metallic; // Metals have no diffuse
-        
-        // Start with ambient lighting
+
+        vec3 kS = specular;
+        vec3 kD = (vec3(1.0) - kS) * (1.0 - mat.metallic);
         vec3 ambient = baseColor.rgb * 0.1;
         vec3 finalColor = ambient;
-        
-        // Add lighting if NOT in shadow
         if (!inShadow) {
-            // Diffuse lighting
             vec3 diffuse = kD * baseColor.rgb / PI;
-            
-            // Combine diffuse and specular
             vec3 lighting = (diffuse + specular) * lightColor * NdotL * lightIntensity;
             finalColor += lighting;
         }
-
         outColor = vec4(finalColor, baseColor.a);
     } else {
-        outColor = background;
+        discard;
     }
 }
