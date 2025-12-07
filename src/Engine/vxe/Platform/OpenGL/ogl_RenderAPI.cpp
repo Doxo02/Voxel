@@ -1,6 +1,8 @@
 #include "ogl_RenderAPI.h"
 
 #include <GL/glew.h>
+
+#define SPDLOG_USE_STD_FORMAT
 #include <spdlog/spdlog.h>
 
 void vxe::OGLRenderAPI::init(Window* window) {

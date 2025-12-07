@@ -2,6 +2,8 @@
 build/
 cmake-build-debug/
 cmake-build-release/
+.zig-cache/
+.zig-out/
 
 # IDE dirs
 .vscode/

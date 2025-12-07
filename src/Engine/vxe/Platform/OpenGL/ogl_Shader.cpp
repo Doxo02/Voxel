@@ -2,6 +2,8 @@
 
 #include <GL/glew.h>
 #include <fstream>
+
+#define SPDLOG_USE_STD_FORMAT
 #include <spdlog/spdlog.h>
 #include <glm/gtc/type_ptr.hpp>
 

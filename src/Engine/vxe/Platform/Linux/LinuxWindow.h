@@ -22,7 +22,7 @@ namespace vxe {
             void setVSync(bool enabled) override;
             bool isVSync() const override;
 
-            virtual void* getNativeWindow() const { return m_window; }
+            virtual void* getNativeWindow() const override { return m_window; }
 
             void swapBuffer() const override;
 

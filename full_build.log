@@ -1,0 +1,10 @@
+install
++- install VoxelApp failure
+error: unable to update file from '.zig-cache/o/8a765c3452cfc0644cb59461343bcbbc/VoxelApp' to '/home/lars/Documents/dev/Voxel/zig-out/bin/VoxelApp': FileNotFound
+
+Build Summary: 4/6 steps succeeded; 1 failed
+install transitive failure
++- install VoxelApp failure
+
+error: the following build command failed with exit code 1:
+.zig-cache/o/1919224819112a7d6e01f7df00834b85/build /usr/bin/zig /usr/lib/zig /home/lars/Documents/dev/Voxel .zig-cache /home/lars/.cache/zig --seed 0x7976af9a -Zabe8864e8aa7010f

@@ -2,10 +2,8 @@
 
 #include <filesystem>
 
+#define SPDLOG_USE_STD_FORMAT
 #include <spdlog/spdlog.h>
-#include <imgui.h>
-#include <backends/imgui_impl_glfw.h>
-#include <backends/imgui_impl_opengl3.h>
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -40,16 +38,6 @@ bool App::init() {
     VXE_SUBSCRIBE_MEMBER(vxe::MouseMovedEvent, this, &App::onMouseMove);
     VXE_SUBSCRIBE_MEMBER(vxe::MouseScrolledEvent, this, &App::onMouseScroll);
     VXE_SUBSCRIBE_MEMBER(vxe::WindowCloseEvent, this, &App::onWindowClose);
-
-    // Init ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavNoCaptureKeyboard;
-
-    ImGui_ImplGlfw_InitForOpenGL(static_cast<GLFWwindow*>(m_window->getNativeWindow()), true);
-    ImGui_ImplOpenGL3_Init();
-    spdlog::info("Initialized ImGui");
 
     std::filesystem::path shaderDir = std::filesystem::current_path() / "assets" / "shader";
     m_program = vxe::Shader::create();
@@ -98,11 +86,6 @@ bool App::init() {
 }
 
 void App::terminate() {
-    // Clean up ImGui
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-
     // Smart pointers will automatically clean up all allocated objects
     // No manual delete calls needed
 }
@@ -118,21 +101,6 @@ void App::run() {
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        ImGui::Begin("Debug Info");
-        ImGui::Text("%.4f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
-        ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
-        ImGui::Text("Camere pos: (%.2f, %.2f, %.2f)", m_camera->position.x, m_camera->position.y, m_camera->position.z);
-        ImGui::Text("Memory (MiB): %.4f", (float) getCurrentRSS() / (1024.0 * 1024.0));
-        ImGui::SliderFloat("Voxel Scale", &voxelScale, 0.0, 2.0);
-        ImGui::InputFloat3("Light Pos", glm::value_ptr(lightPos));
-        ImGui::InputFloat3("Light Color", glm::value_ptr(lightColor));
-        ImGui::InputFloat("Light Intensity", &lightIntensity, 0.01, 0.1);
-        ImGui::End();
 
         if (viewportResized) {
             m_program->setUniform("resolution", glm::vec2(m_width, m_height));
@@ -168,9 +136,6 @@ void App::run() {
         // if (error != GL_NO_ERROR) {
         //     spdlog::error("OpenGL error: {}", error);
         // }
-
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         m_renderer->endFrame();
         m_window->onUpdate();

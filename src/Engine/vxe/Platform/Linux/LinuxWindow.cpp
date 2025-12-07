@@ -1,5 +1,6 @@
 #include "LinuxWindow.h"
 
+#define SPDLOG_USE_STD_FORMAT
 #include <spdlog/spdlog.h>
 
 namespace vxe {

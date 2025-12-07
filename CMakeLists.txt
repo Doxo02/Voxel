@@ -51,7 +51,7 @@ add_library(VoxelEngine
 target_include_directories(VoxelEngine PUBLIC lib)
 target_link_libraries(VoxelEngine PUBLIC
     GLEW::GLEW
-    glm
+    glm::glm
     OpenGL::GL
     spdlog::spdlog
 )
@@ -62,4 +62,4 @@ add_executable(VoxelApp
 
 target_include_directories(VoxelApp PUBLIC ${imgui_external_SOURCE_DIR} lib src/Engine)
 
-target_link_libraries(VoxelApp PRIVATE GLEW::GLEW glfw glm OpenGL::GL imgui spdlog::spdlog VoxelEngine)
+target_link_libraries(VoxelApp PRIVATE GLEW::GLEW glfw glm::glm OpenGL::GL imgui spdlog::spdlog VoxelEngine)
