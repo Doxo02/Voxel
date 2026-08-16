@@ -29,6 +29,7 @@ add_library(VoxelEngine
 	src/Engine/vxe/DataStructures/BrickMap.cpp
     src/Engine/vxe/Core/Window.cpp
     src/Engine/vxe/Platform/Linux/LinuxWindow.cpp
+    src/Engine/vxe/Platform/Windows/WindowsWindow.cpp
 )
 
 target_include_directories(VoxelEngine PUBLIC lib)
@@ -41,7 +42,8 @@ target_link_libraries(VoxelEngine PUBLIC
 
 add_executable(VoxelApp
     src/App.cpp
-    src/Rendering/Camera.cpp)
+    src/Rendering/Camera.cpp
+    src/Rendering/DebugInfo.cpp)
 
 target_include_directories(VoxelApp PUBLIC ${imgui_external_SOURCE_DIR} lib src/Engine)
 

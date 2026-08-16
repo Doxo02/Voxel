@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "Rendering/Camera.h"
+#include "Rendering/DebugInfo.h"
 
 #include <vxe.h>
 
@@ -28,11 +29,9 @@ class App : public vxe::Application {
 
         std::unique_ptr<vxe::Shader> m_program;
 
-        // std::unique_ptr<vxe::ShaderStorageBuffer> m_brickMapSSBO;
-        // std::unique_ptr<vxe::ShaderStorageBuffer> m_brickSSBO;
-        // std::unique_ptr<vxe::ShaderStorageBuffer> m_materialSSBO;
         std::unique_ptr<vxe::ShaderStorageBuffer> m_materialInfosSSBO;
         std::unique_ptr<vxe::VoxelGrid> m_grid;
+        std::unique_ptr<DebugInfo> m_debugInfo;
 
         bool viewportResized = false;
         float deltaTime = 0.0f;

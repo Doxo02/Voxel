@@ -3,17 +3,12 @@
 #include <filesystem>
 
 #include <spdlog/spdlog.h>
-#include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
 
 #include <glm/gtc/type_ptr.hpp>
 
 #include "platform/rss.h"
 #include <FastNoiseLite.h>
 #include <GLFW/glfw3.h>
-
-// #include "vxe/DataStructures/BrickMap.h"
 
 std::vector<vxe::MaterialInfo> materialInfos = {
     { glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), 0.0f, 0.0f },     // AIR
@@ -42,13 +37,8 @@ bool App::init() {
     VXE_SUBSCRIBE_MEMBER(vxe::WindowCloseEvent, this, &App::onWindowClose);
 
     // Init ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavNoCaptureKeyboard;
-
-    ImGui_ImplGlfw_InitForOpenGL(static_cast<GLFWwindow*>(m_window->getNativeWindow()), true);
-    ImGui_ImplOpenGL3_Init();
+    m_debugInfo = std::make_unique<DebugInfo>();
+    m_debugInfo->init(m_window.get());
     spdlog::info("Initialized ImGui");
 
     std::filesystem::path shaderDir = std::filesystem::current_path() / "assets" / "shader";
@@ -98,41 +88,16 @@ bool App::init() {
 }
 
 void App::terminate() {
-    // Clean up ImGui
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-
-    // Smart pointers will automatically clean up all allocated objects
-    // No manual delete calls needed
+    
 }
 
 void App::run() {
-    float voxelScale = 1.0f;
-
-    glm::vec3 lightPos(80.0f, 70.0f, 80.0f);
-    glm::vec3 lightColor(1.0f);
-    float lightIntensity = 1.0f;
-
     while (running) {
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        ImGui::Begin("Debug Info");
-        ImGui::Text("%.4f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
-        ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
-        ImGui::Text("Camere pos: (%.2f, %.2f, %.2f)", m_camera->position.x, m_camera->position.y, m_camera->position.z);
-        ImGui::Text("Memory (MiB): %.2f", (float) getCurrentRSS() / (1024.0 * 1024.0));
-        ImGui::SliderFloat("Voxel Scale", &voxelScale, 0.0, 2.0);
-        ImGui::InputFloat3("Light Pos", glm::value_ptr(lightPos));
-        ImGui::InputFloat3("Light Color", glm::value_ptr(lightColor));
-        ImGui::InputFloat("Light Intensity", &lightIntensity, 0.01, 0.1);
-        ImGui::End();
+        m_debugInfo->updateValues(m_camera->position, getCurrentRSS());
 
         if (viewportResized) {
             m_program->setUniform("resolution", glm::vec2(m_width, m_height));
@@ -143,36 +108,24 @@ void App::run() {
         m_program->setUniform("time", (float) glfwGetTime());
         m_program->setUniform("invViewProj", invVP);
         m_program->setUniform("cameraPos", m_camera->position);
-        m_program->setUniform("voxelScale", voxelScale);
-        m_program->setUniform("lightPos", lightPos);
-        m_program->setUniform("lightColor", lightColor);
-        m_program->setUniform("lightIntensity", lightIntensity);
+        m_program->setUniform("voxelScale", m_debugInfo->getVoxelScale());
+        m_program->setUniform("lightPos", m_debugInfo->getLightPos());
+        m_program->setUniform("lightColor", m_debugInfo->getLightColor());
+        m_program->setUniform("lightIntensity", m_debugInfo->getLightIntensity());
 
         processInput();
 
         m_renderer->beginFrame();
 
-        // GLenum error = glGetError();
-        // if (error != GL_NO_ERROR) {
-        //     spdlog::error("OpenGL error: {}", error);
-        // }
-
+        // Bind everything and submit Grid to the Render queue
         m_program->bind();
-        // m_brickMapSSBO->bindBase();
-        // m_brickSSBO->bindBase();
-        // m_materialSSBO->bindBase();
         m_materialInfosSSBO->bindBase();
         m_renderer->submit(m_grid.get());
 
-        // error = glGetError();
-        // if (error != GL_NO_ERROR) {
-        //     spdlog::error("OpenGL error: {}", error);
-        // }
-
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
+        // Submit debugInfo to queue
+        m_renderer->submit(m_debugInfo.get());
         m_renderer->endFrame();
+        
         m_window->onUpdate();
     }
 
