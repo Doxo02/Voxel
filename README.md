@@ -17,7 +17,7 @@
 ### Prerequisites
 
 - C++17 compiler
-- CMake 3.10+
+- CMake 3.21+
 - OpenGL 4.5+
 - GLFW
 - GLAD
