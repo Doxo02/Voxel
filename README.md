@@ -28,8 +28,9 @@
 git clone https://github.com/Doxo02/Voxel.git
 cd Voxel
 mkdir build
+cmake --preset=default
 cmake -B build
-make -C build
+cmake --build build
 ./build/Voxel
 ```
 
