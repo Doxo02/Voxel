@@ -10,6 +10,11 @@
 #include <vector>
 #include <mutex>
 
+#ifdef _MSC_VER
+    #include <intrin.h>
+    #define __builtin_popcountl __popcnt64
+#endif
+
 namespace vxe {
     static constexpr size_t BRICK_SIZE = 8;
     static constexpr size_t VOXELS_PER_BRICK = BRICK_SIZE * BRICK_SIZE * BRICK_SIZE;

@@ -26,7 +26,6 @@
 #endif
 
 #include <ios>
-#include <unistd.h>
 
 size_t getCurrentRSS( )
 {

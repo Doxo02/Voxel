@@ -44,7 +44,7 @@ namespace vxe {
     }
 
     bool BrickMap::generateChunk(const glm::ivec3& pos) {
-        std::lock_guard lock(m_chunkGenMutex);
+        // std::lock_guard lock(m_chunkGenMutex);
 
         if(pos.x >= m_dimensions.x || pos.y >= m_dimensions.y || pos.z >= m_dimensions.z ||
         pos.x < 0 || pos.y < 0 || pos.z < 0)

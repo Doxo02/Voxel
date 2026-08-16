@@ -8,3 +8,5 @@ cmake-build-release/
 .idea/
 
 imgui.ini
+
+CMakeUserPresets.json

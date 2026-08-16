@@ -4,8 +4,8 @@
 
 #include <spdlog/spdlog.h>
 #include <imgui.h>
-#include <backends/imgui_impl_glfw.h>
-#include <backends/imgui_impl_opengl3.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -127,7 +127,7 @@ void App::run() {
         ImGui::Text("%.4f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
         ImGui::Text("FPS: %.2f", ImGui::GetIO().Framerate);
         ImGui::Text("Camere pos: (%.2f, %.2f, %.2f)", m_camera->position.x, m_camera->position.y, m_camera->position.z);
-        ImGui::Text("Memory (MiB): %.4f", (float) getCurrentRSS() / (1024.0 * 1024.0));
+        ImGui::Text("Memory (MiB): %.2f", (float) getCurrentRSS() / (1024.0 * 1024.0));
         ImGui::SliderFloat("Voxel Scale", &voxelScale, 0.0, 2.0);
         ImGui::InputFloat3("Light Pos", glm::value_ptr(lightPos));
         ImGui::InputFloat3("Light Color", glm::value_ptr(lightColor));
