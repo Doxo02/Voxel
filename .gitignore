@@ -1,7 +1,9 @@
 # common build dirs
 build/
+build-release/
 cmake-build-debug/
 cmake-build-release/
+vcpkg_installed/
 
 # IDE dirs
 .vscode/

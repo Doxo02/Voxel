@@ -49,12 +49,14 @@ target_include_directories(VoxelApp PUBLIC ${imgui_external_SOURCE_DIR} lib src/
 
 target_link_libraries(VoxelApp PRIVATE GLEW::GLEW glfw glm::glm OpenGL::GL imgui::imgui spdlog::spdlog VoxelEngine)
 
-add_custom_command(TARGET VoxelApp POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_RUNTIME_DLLS:VoxelApp>
-        $<TARGET_FILE_DIR:VoxelApp>
-    COMMAND_EXPAND_LISTS
-)
+if(WIN32)
+    add_custom_command(TARGET VoxelApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_RUNTIME_DLLS:VoxelApp>
+            $<TARGET_FILE_DIR:VoxelApp>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
 
 if(NOT EXISTS $<TARGET_FILE_DIR:VoxelApp>/assets)
     add_custom_command(TARGET VoxelApp POST_BUILD
