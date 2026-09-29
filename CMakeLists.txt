@@ -15,21 +15,21 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 
 add_library(VoxelEngine 
-    src/Engine/vxe/Application.cpp
-    src/Engine/vxe/Platform/OpenGL/ogl_Shader.cpp
-    src/Engine/vxe/Platform/OpenGL/ogl_VertexArray.cpp
-    src/Engine/vxe/Platform/OpenGL/ogl_VertexBuffer.cpp
-    src/Engine/vxe/Platform/OpenGL/ogl_IndexBuffer.cpp
-    src/Engine/vxe/Platform/OpenGL/ogl_ShaderStorageBuffer.cpp
-    src/Engine/vxe/Platform/OpenGL/ogl_RenderAPI.cpp
-    src/Engine/vxe/Rendering/graphics/Factories.cpp
-    src/Engine/vxe/Rendering/Renderer.cpp
-    src/Engine/vxe/Rendering/VoxelGrid.cpp
-	src/Engine/vxe/DataStructures/Grid.cpp
-	src/Engine/vxe/DataStructures/BrickMap.cpp
-    src/Engine/vxe/Core/Window.cpp
-    src/Engine/vxe/Platform/Linux/LinuxWindow.cpp
-    src/Engine/vxe/Platform/Windows/WindowsWindow.cpp
+    src/vxe/Application.cpp
+    src/vxe/Platform/OpenGL/ogl_Shader.cpp
+    src/vxe/Platform/OpenGL/ogl_VertexArray.cpp
+    src/vxe/Platform/OpenGL/ogl_VertexBuffer.cpp
+    src/vxe/Platform/OpenGL/ogl_IndexBuffer.cpp
+    src/vxe/Platform/OpenGL/ogl_ShaderStorageBuffer.cpp
+    src/vxe/Platform/OpenGL/ogl_RenderAPI.cpp
+    src/vxe/Rendering/graphics/Factories.cpp
+    src/vxe/Rendering/Renderer.cpp
+    src/vxe/Rendering/VoxelGrid.cpp
+	src/vxe/DataStructures/Grid.cpp
+	src/vxe/DataStructures/BrickMap.cpp
+    src/vxe/Core/Window.cpp
+    src/vxe/Platform/Linux/LinuxWindow.cpp
+    src/vxe/Platform/Windows/WindowsWindow.cpp
 )
 
 target_include_directories(VoxelEngine PUBLIC lib)
@@ -41,11 +41,11 @@ target_link_libraries(VoxelEngine PUBLIC
 )
 
 add_executable(VoxelApp
-    src/App.cpp
-    src/Rendering/Camera.cpp
-    src/Rendering/DebugInfo.cpp)
+    example/App.cpp
+    example/Rendering/Camera.cpp
+    example/Rendering/DebugInfo.cpp)
 
-target_include_directories(VoxelApp PUBLIC ${imgui_external_SOURCE_DIR} lib src/Engine)
+target_include_directories(VoxelApp PUBLIC ${imgui_external_SOURCE_DIR} lib src)
 
 target_link_libraries(VoxelApp PRIVATE GLEW::GLEW glfw glm::glm OpenGL::GL imgui::imgui spdlog::spdlog VoxelEngine)
 
